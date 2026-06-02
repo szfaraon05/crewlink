@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrewLink – Ankieta dla Załóg</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0B1628;--navy2:#132240;--navy3:#1E3A5F;
+  --sky:#3B8BEB;--sky2:#60A8F5;
+  --gold:#E8B84B;--green:#2DD4A0;--red:#F06060;
+  --muted:#8BA3C0;--border:rgba(59,139,235,0.2);
+  --txt:#F4F7FF;--surface:rgba(19,34,64,0.9)
+}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--txt);min-height:100vh;overflow-x:hidden}
+
+/* ── BACKGROUND ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 20% 20%, rgba(59,139,235,.12) 0%, transparent 60%),
+             radial-gradient(ellipse 60% 80% at 80% 80%, rgba(45,212,160,.07) 0%, transparent 60%);
+  pointer-events:none;z-index:0
+}
+
+.wrap{max-width:680px;margin:0 auto;padding:40px 20px 80px;position:relative;z-index:1}
+
+/* ── HEADER ── */
+.header{text-align:center;margin-bottom:48px}
+.logo{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.5px;margin-bottom:20px}
+.logo span{color:var(--sky2)}
+.plane-divider{display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:24px;color:var(--muted);font-size:12px;letter-spacing:2px;text-transform:uppercase}
+.plane-divider::before,.plane-divider::after{content:'';flex:1;height:.5px;background:linear-gradient(90deg,transparent,var(--border),transparent)}
+h1{font-family:'Syne',sans-serif;font-size:32px;font-weight:700;line-height:1.15;margin-bottom:14px}
+h1 em{color:var(--sky2);font-style:normal}
+.subtitle{font-size:15px;color:var(--muted);line-height:1.65;max-width:520px;margin:0 auto}
+
+/* ── PROGRESS ── */
+.progress-wrap{margin-bottom:32px}
+.progress-bar{height:3px;background:var(--navy3);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--sky),var(--sky2));border-radius:2px;transition:width .4s ease}
+.progress-label{font-size:11px;color:var(--muted);text-align:right;letter-spacing:.5px}
+
+/* ── STEPS ── */
+.step{display:none;animation:fadeUp .3s ease}
+.step.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── QUESTION CARD ── */
+.q-card{background:var(--surface);border:0.5px solid var(--border);border-radius:16px;padding:28px;margin-bottom:16px;backdrop-filter:blur(10px)}
+.q-number{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--sky2);margin-bottom:10px}
+.q-text{font-family:'Syne',sans-serif;font-size:18px;font-weight:600;line-height:1.4;margin-bottom:6px}
+.q-sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5}
+
+/* ── OPTIONS ── */
+.options{display:flex;flex-direction:column;gap:9px}
+.option{display:flex;align-items:center;gap:12px;padding:12px 16px;border:0.5px solid var(--border);border-radius:10px;cursor:pointer;transition:all .15s;background:transparent}
+.option:hover{border-color:var(--sky2);background:rgba(59,139,235,.06)}
+.option.selected{border-color:var(--sky2);background:rgba(59,139,235,.12)}
+.option.selected .opt-dot{background:var(--sky2);border-color:var(--sky2)}
+.option.selected .opt-dot::after{opacity:1}
+.opt-dot{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--muted);flex-shrink:0;position:relative;transition:all .15s}
+.opt-dot::after{content:'';width:8px;height:8px;background:#fff;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);opacity:0;transition:opacity .15s}
+.opt-text{font-size:13px;color:var(--txt);line-height:1.4}
+
+/* Multi select */
+.option.multi .opt-dot{border-radius:4px}
+.option.multi.selected .opt-dot{background:var(--sky2);border-color:var(--sky2)}
+.option.multi.selected .opt-dot::after{content:'✓';font-size:10px;color:#fff;font-weight:700;width:auto;height:auto;background:none;top:50%;left:50%;transform:translate(-50%,-50%)}
+
+/* ── RATING ── */
+.rating-wrap{display:flex;gap:8px;flex-wrap:wrap}
+.rating-btn{width:44px;height:44px;border-radius:10px;border:0.5px solid var(--border);background:transparent;color:var(--muted);font-size:15px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.rating-btn:hover{border-color:var(--sky2);color:var(--sky2)}
+.rating-btn.selected{background:var(--sky);border-color:var(--sky);color:#fff}
+.rating-labels{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)}
+
+/* ── TEXT INPUT ── */
+.text-input{width:100%;background:var(--navy3);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px;font-size:14px;color:var(--txt);font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;resize:vertical;min-height:100px}
+.text-input:focus{border-color:var(--sky2)}
+.text-input::placeholder{color:var(--muted)}
+.short-input{min-height:auto;resize:none}
+
+/* ── INFO FIELDS ── */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:480px){.info-grid{grid-template-columns:1fr}}
+.field-wrap label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;letter-spacing:.5px;text-transform:uppercase}
+.field-input{width:100%;background:var(--navy3);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--txt);font-family:'DM Sans',sans-serif;outline:none;transition:border .15s}
+.field-input:focus{border-color:var(--sky2)}
+.field-input::placeholder{color:var(--muted)}
+select.field-input option{background:var(--navy2)}
+
+/* ── BUTTONS ── */
+.btn-row{display:flex;gap:10px;margin-top:20px}
+.btn-next{background:var(--sky);color:#fff;border:none;padding:13px 28px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;flex:1}
+.btn-next:hover{background:var(--sky2)}
+.btn-next:disabled{opacity:.4;cursor:not-allowed}
+.btn-back{background:transparent;color:var(--muted);border:0.5px solid var(--border);padding:13px 20px;border-radius:10px;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.btn-back:hover{border-color:var(--sky2);color:var(--sky2)}
+
+/* ── THANK YOU ── */
+.thank-you{text-align:center;padding:48px 20px;animation:fadeUp .4s ease}
+.ty-icon{font-size:56px;margin-bottom:20px}
+.ty-title{font-family:'Syne',sans-serif;font-size:28px;font-weight:700;margin-bottom:12px}
+.ty-sub{font-size:15px;color:var(--muted);line-height:1.65;max-width:460px;margin:0 auto 28px}
+.ty-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(45,212,160,.12);border:0.5px solid rgba(45,212,160,.3);border-radius:10px;padding:10px 18px;font-size:13px;color:var(--green);margin-bottom:24px}
+.demo-btn{display:inline-block;background:var(--sky);color:#fff;padding:13px 28px;border-radius:10px;font-size:14px;font-weight:500;text-decoration:none;font-family:'DM Sans',sans-serif;transition:background .15s}
+.demo-btn:hover{background:var(--sky2)}
+
+/* ── SKIP ── */
+.skip-link{display:block;text-align:center;margin-top:12px;font-size:12px;color:var(--muted);cursor:pointer;transition:color .15s}
+.skip-link:hover{color:var(--sky2)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo">Crew<span>Link</span></div>
+    <div class="plane-divider">✈ ankieta dla załóg ✈</div>
+    <h1>Pomóż nam zbudować<br>aplikację dla <em>Twojej branży</em></h1>
+    <p class="subtitle">Wypełnienie ankiety zajmuje około 3 minut. Twoje odpowiedzi są anonimowe i pomogą nam dopasować CrewLink do realnych potrzeb pilotów i stewardów.</p>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+    <div class="progress-label" id="progress-label">Pytanie 1 z 8</div>
+  </div>
+
+  <!-- STEP 1: Rola -->
+  <div class="step active" id="step-1">
+    <div class="q-card">
+      <div class="q-number">Pytanie 1</div>
+      <div class="q-text">Jaka jest Twoja rola w branży lotniczej?</div>
+      <div class="q-sub">Wybierz jedną odpowiedź.</div>
+      <div class="options" id="q1">
+        <div class="option" onclick="select(this,'q1')"><div class="opt-dot"></div><div class="opt-text">Kapitan</div></div>
+        <div class="option" onclick="select(this,'q1')"><div class="opt-dot"></div><div class="opt-text">Pierwszy Oficer (F/O)</div></div>
+        <div class="option" onclick="select(this,'q1')"><div class="opt-dot"></div><div class="opt-text">Drugi Oficer / Inżynier pokładowy</div></div>
+        <div class="option" onclick="select(this,'q1')"><div class="opt-dot"></div><div class="opt-text">Purser</div></div>
+        <div class="option" onclick="select(this,'q1')"><div class="opt-dot"></div><div class="opt-text">Stewardessa / Steward</div></div>
+        <div class="option" onclick="select(this,'q1')"><div class="opt-dot"></div><div class="opt-text">Inna rola</div></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-next" onclick="next(1)" id="btn-1" disabled>Dalej →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Staż i typ tras -->
+  <div class="step" id="step-2">
+    <div class="q-card">
+      <div class="q-number">Pytanie 2</div>
+      <div class="q-text">Jak długo pracujesz w branży?</div>
+      <div class="options" id="q2">
+        <div class="option" onclick="select(this,'q2')"><div class="opt-dot"></div><div class="opt-text">Mniej niż 2 lata</div></div>
+        <div class="option" onclick="select(this,'q2')"><div class="opt-dot"></div><div class="opt-text">2–5 lat</div></div>
+        <div class="option" onclick="select(this,'q2')"><div class="opt-dot"></div><div class="opt-text">5–10 lat</div></div>
+        <div class="option" onclick="select(this,'q2')"><div class="opt-dot"></div><div class="opt-text">10–20 lat</div></div>
+        <div class="option" onclick="select(this,'q2')"><div class="opt-dot"></div><div class="opt-text">Ponad 20 lat</div></div>
+      </div>
+    </div>
+    <div class="q-card" style="margin-top:12px">
+      <div class="q-number">Pytanie 2b</div>
+      <div class="q-text">Jaki typ tras najczęściej obsługujesz?</div>
+      <div class="options" id="q2b">
+        <div class="option" onclick="select(this,'q2b')"><div class="opt-dot"></div><div class="opt-text">Krótkie (do 3h) – głównie krajowe / europejskie</div></div>
+        <div class="option" onclick="select(this,'q2b')"><div class="opt-dot"></div><div class="opt-text">Średnie (3–7h)</div></div>
+        <div class="option" onclick="select(this,'q2b')"><div class="opt-dot"></div><div class="opt-text">Długodystansowe (ponad 7h)</div></div>
+        <div class="option" onclick="select(this,'q2b')"><div class="opt-dot"></div><div class="opt-text">Mieszane</div></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(2)">← Wróć</button>
+      <button class="btn-next" onclick="next(2)" id="btn-2" disabled>Dalej →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Problem layover -->
+  <div class="step" id="step-3">
+    <div class="q-card">
+      <div class="q-number">Pytanie 3</div>
+      <div class="q-text">Jak często miewasz postoje (layover) trwające ponad 8 godzin?</div>
+      <div class="options" id="q3">
+        <div class="option" onclick="select(this,'q3')"><div class="opt-dot"></div><div class="opt-text">Prawie nigdy – głównie loty tam i z powrotem</div></div>
+        <div class="option" onclick="select(this,'q3')"><div class="opt-dot"></div><div class="opt-text">Rzadko – kilka razy w roku</div></div>
+        <div class="option" onclick="select(this,'q3')"><div class="opt-dot"></div><div class="opt-text">Regularnie – kilka razy w miesiącu</div></div>
+        <div class="option" onclick="select(this,'q3')"><div class="opt-dot"></div><div class="opt-text">Bardzo często – to mój standard</div></div>
+      </div>
+    </div>
+    <div class="q-card" style="margin-top:12px">
+      <div class="q-number">Pytanie 3b</div>
+      <div class="q-text">Czy podczas postojów zdarza Ci się czuć izolację lub trudność z nawiązaniem kontaktu z innymi członkami załogi?</div>
+      <div class="options" id="q3b">
+        <div class="option" onclick="select(this,'q3b')"><div class="opt-dot"></div><div class="opt-text">Tak, regularnie</div></div>
+        <div class="option" onclick="select(this,'q3b')"><div class="opt-dot"></div><div class="opt-text">Czasami</div></div>
+        <div class="option" onclick="select(this,'q3b')"><div class="opt-dot"></div><div class="opt-text">Rzadko</div></div>
+        <div class="option" onclick="select(this,'q3b')"><div class="opt-dot"></div><div class="opt-text">Nie – zwykle łatwo mi nawiązać kontakt</div></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(3)">← Wróć</button>
+      <button class="btn-next" onclick="next(3)" id="btn-3" disabled>Dalej →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: Obecne rozwiązania -->
+  <div class="step" id="step-4">
+    <div class="q-card">
+      <div class="q-number">Pytanie 4</div>
+      <div class="q-text">Jakich narzędzi używasz teraz do kontaktu z innymi załogami podczas postojów?</div>
+      <div class="q-sub">Możesz wybrać kilka odpowiedzi.</div>
+      <div class="options" id="q4">
+        <div class="option multi" onclick="multiSelect(this,'q4')"><div class="opt-dot"></div><div class="opt-text">WhatsApp / grupy liniowe</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q4')"><div class="opt-dot"></div><div class="opt-text">Facebook / grupy dla załóg</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q4')"><div class="opt-dot"></div><div class="opt-text">Wewnętrzna aplikacja linii lotniczej</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q4')"><div class="opt-dot"></div><div class="opt-text">SMS / telefon</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q4')"><div class="opt-dot"></div><div class="opt-text">Nie mam żadnego narzędzia do tego</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q4')"><div class="opt-dot"></div><div class="opt-text">Inne</div></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(4)">← Wróć</button>
+      <button class="btn-next" onclick="next(4)" id="btn-4" disabled>Dalej →</button>
+    </div>
+  </div>
+
+  <!-- STEP 5: Funkcje -->
+  <div class="step" id="step-5">
+    <div class="q-card">
+      <div class="q-number">Pytanie 5</div>
+      <div class="q-text">Które funkcje CrewLink byłyby dla Ciebie najbardziej przydatne?</div>
+      <div class="q-sub">Wybierz maksymalnie 3 najważniejsze.</div>
+      <div class="options" id="q5">
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">🗺️ Mapa załóg – kto jest teraz w moim mieście</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">💬 Czat lokalny z załogami w tym samym mieście</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">⭐ Crew-Tips – sprawdzone restauracje i transport od innych załóg</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">✈️ Log lotów z automatycznym pobieraniem danych</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">🏨 Zniżki w hotelach i restauracjach dla załóg</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">📅 Kalendarz lotów i postoje</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">🆘 SOS – szybka pomoc od innych załóg w mieście</div></div>
+        <div class="option multi" onclick="multiSelect(this,'q5',3)"><div class="opt-dot"></div><div class="opt-text">🔒 Prywatne wiadomości z konkretnymi osobami</div></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(5)">← Wróć</button>
+      <button class="btn-next" onclick="next(5)" id="btn-5" disabled>Dalej →</button>
+    </div>
+  </div>
+
+  <!-- STEP 6: NPS -->
+  <div class="step" id="step-6">
+    <div class="q-card">
+      <div class="q-number">Pytanie 6</div>
+      <div class="q-text">Jak oceniasz prawdopodobieństwo, że użyłbyś/-abyś aplikacji CrewLink?</div>
+      <div class="q-sub">1 = na pewno nie, 10 = na pewno tak</div>
+      <div class="rating-wrap" id="q6">
+        <button class="rating-btn" onclick="ratingSelect('q6',1,this)">1</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',2,this)">2</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',3,this)">3</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',4,this)">4</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',5,this)">5</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',6,this)">6</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',7,this)">7</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',8,this)">8</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',9,this)">9</button>
+        <button class="rating-btn" onclick="ratingSelect('q6',10,this)">10</button>
+      </div>
+      <div class="rating-labels"><span>Na pewno nie</span><span>Na pewno tak</span></div>
+    </div>
+    <div class="q-card" style="margin-top:12px">
+      <div class="q-number">Pytanie 6b</div>
+      <div class="q-text">Czy polecił(a)byś CrewLink innym członkom załogi?</div>
+      <div class="options" id="q6b">
+        <div class="option" onclick="select(this,'q6b')"><div class="opt-dot"></div><div class="opt-text">Zdecydowanie tak</div></div>
+        <div class="option" onclick="select(this,'q6b')"><div class="opt-dot"></div><div class="opt-text">Raczej tak</div></div>
+        <div class="option" onclick="select(this,'q6b')"><div class="opt-dot"></div><div class="opt-text">Nie wiem</div></div>
+        <div class="option" onclick="select(this,'q6b')"><div class="opt-dot"></div><div class="opt-text">Raczej nie</div></div>
+        <div class="option" onclick="select(this,'q6b')"><div class="opt-dot"></div><div class="opt-text">Zdecydowanie nie</div></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(6)">← Wróć</button>
+      <button class="btn-next" onclick="next(6)" id="btn-6" disabled>Dalej →</button>
+    </div>
+  </div>
+
+  <!-- STEP 7: Otwarte pytania -->
+  <div class="step" id="step-7">
+    <div class="q-card">
+      <div class="q-number">Pytanie 7</div>
+      <div class="q-text">Czego najbardziej brakuje Ci podczas postojów za granicą?</div>
+      <div class="q-sub">Napisz własnymi słowami – każda odpowiedź jest dla nas cenna.</div>
+      <textarea class="text-input" id="q7" placeholder="np. Trudno mi znaleźć kogoś z kogo mogę zjeść kolację, nie znam miasta, nie wiem gdzie jest dobra restauracja..."></textarea>
+    </div>
+    <div class="q-card" style="margin-top:12px">
+      <div class="q-number">Pytanie 7b</div>
+      <div class="q-text">Co powinniśmy ulepszyć lub dodać do CrewLink?</div>
+      <div class="q-sub">Dowolne sugestie, pomysły, krytyka – wszystko jest mile widziane.</div>
+      <textarea class="text-input" id="q7b" placeholder="Twoje sugestie..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(7)">← Wróć</button>
+      <button class="btn-next" onclick="next(7)" id="btn-7">Dalej →</button>
+    </div>
+    <span class="skip-link" onclick="next(7)">Pomiń to pytanie</span>
+  </div>
+
+  <!-- STEP 8: Dane kontaktowe (opcjonalne) -->
+  <div class="step" id="step-8">
+    <div class="q-card">
+      <div class="q-number">Pytanie 8 – opcjonalne</div>
+      <div class="q-text">Zostaw dane kontaktowe jeśli chcesz przetestować CrewLink jako pierwszy/-a</div>
+      <div class="q-sub">Dane są całkowicie opcjonalne i nie będą udostępniane osobom trzecim. Skontaktujemy się tylko w sprawie dostępu do wersji beta.</div>
+      <div class="info-grid" style="margin-top:16px">
+        <div class="field-wrap">
+          <label>Imię (opcjonalnie)</label>
+          <input type="text" class="field-input" id="q8-name" placeholder="Anna">
+        </div>
+        <div class="field-wrap">
+          <label>Linia lotnicza</label>
+          <input type="text" class="field-input" id="q8-airline" placeholder="np. LOT, Ryanair">
+        </div>
+        <div class="field-wrap" style="grid-column:1/-1">
+          <label>Email (opcjonalnie)</label>
+          <input type="email" class="field-input" id="q8-email" placeholder="twoj@email.com">
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-back" onclick="back(8)">← Wróć</button>
+      <button class="btn-next" onclick="submit()">Wyślij odpowiedzi ✈</button>
+    </div>
+    <span class="skip-link" onclick="submit()">Wyślij anonimowo bez danych</span>
+  </div>
+
+  <!-- THANK YOU -->
+  <div class="step" id="step-thanks">
+    <div class="thank-you">
+      <div class="ty-icon">✈️</div>
+      <div class="ty-title">Dziękujemy za wypełnienie ankiety!</div>
+      <p class="ty-sub">Twoje odpowiedzi są dla nas bardzo cenne. Pracujemy nad tym żeby CrewLink stał się aplikacją którą pokochają załogi na całym świecie.</p>
+      <div class="ty-badge">
+        <span>🎁</span>
+        <span>Dostaniesz wcześniejszy dostęp do wersji beta</span>
+      </div>
+      <br>
+      <a href="https://szfaraon05.github.io/crewlink/" class="demo-btn">Zobacz demo CrewLink →</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+var answers = {};
+var currentStep = 1;
+var totalSteps = 8;
+
+function updateProgress() {
+  var pct = ((currentStep - 1) / totalSteps) * 100;
+  document.getElementById('progress').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = 'Pytanie ' + currentStep + ' z ' + totalSteps;
+}
+
+function select(el, groupId) {
+  document.querySelectorAll('#' + groupId + ' .option').forEach(function(o) {
+    o.classList.remove('selected');
+  });
+  el.classList.add('selected');
+  answers[groupId] = el.querySelector('.opt-text').textContent.trim();
+  checkStep(currentStep);
+}
+
+function multiSelect(el, groupId, maxSelect) {
+  var selected = document.querySelectorAll('#' + groupId + ' .option.selected');
+  if (!el.classList.contains('selected') && maxSelect && selected.length >= maxSelect) {
+    // deselect first
+    selected[0].classList.remove('selected');
+  }
+  el.classList.toggle('selected');
+  var vals = [];
+  document.querySelectorAll('#' + groupId + ' .option.selected').forEach(function(o) {
+    vals.push(o.querySelector('.opt-text').textContent.trim());
+  });
+  answers[groupId] = vals;
+  checkStep(currentStep);
+}
+
+function ratingSelect(groupId, val, btn) {
+  document.querySelectorAll('#' + groupId + ' .rating-btn').forEach(function(b) {
+    b.classList.remove('selected');
+  });
+  btn.classList.add('selected');
+  answers[groupId] = val;
+  checkStep(currentStep);
+}
+
+function checkStep(step) {
+  var btn = document.getElementById('btn-' + step);
+  if (!btn) return;
+  var valid = false;
+  if (step === 1) valid = !!answers['q1'];
+  if (step === 2) valid = !!answers['q2'] && !!answers['q2b'];
+  if (step === 3) valid = !!answers['q3'] && !!answers['q3b'];
+  if (step === 4) valid = answers['q4'] && answers['q4'].length > 0;
+  if (step === 5) valid = answers['q5'] && answers['q5'].length > 0;
+  if (step === 6) valid = !!answers['q6'] && !!answers['q6b'];
+  if (step === 7) valid = true; // optional
+  btn.disabled = !valid;
+}
+
+function next(step) {
+  // Save text inputs
+  if (step === 7) {
+    answers['q7'] = document.getElementById('q7').value.trim();
+    answers['q7b'] = document.getElementById('q7b').value.trim();
+  }
+  document.getElementById('step-' + step).classList.remove('active');
+  currentStep = step + 1;
+  var nextEl = document.getElementById('step-' + currentStep);
+  if (nextEl) {
+    nextEl.classList.add('active');
+    updateProgress();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    checkStep(currentStep);
+  }
+}
+
+function back(step) {
+  document.getElementById('step-' + step).classList.remove('active');
+  currentStep = step - 1;
+  document.getElementById('step-' + currentStep).classList.add('active');
+  updateProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+const sb = supabase.createClient(
+  'https://grautjaoubswizwhfhgb.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyYXV0amFvdWJzd2l6d2hmaGdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMDY3ODYsImV4cCI6MjA5NTU4Mjc4Nn0.0Iv-ATXB1X7P4KRdpd-x_czQ0D1ZM_d9nXWBxHTHLdY'
+);
+
+async function submit() {
+  answers['q8-name'] = document.getElementById('q8-name').value.trim();
+  answers['q8-airline'] = document.getElementById('q8-airline').value.trim();
+  answers['q8-email'] = document.getElementById('q8-email').value.trim();
+
+  var btn = document.querySelector('#step-8 .btn-next');
+  btn.textContent = 'Zapisywanie...';
+  btn.disabled = true;
+
+  try {
+    await sb.from('survey_responses').insert({
+      role: answers['q1'] || null,
+      experience: answers['q2'] || null,
+      route_type: answers['q2b'] || null,
+      layover_frequency: answers['q3'] || null,
+      feels_isolated: answers['q3b'] || null,
+      current_tools: answers['q4'] || null,
+      wanted_features: answers['q5'] || null,
+      nps_score: answers['q6'] || null,
+      would_recommend: answers['q6b'] || null,
+      missing_during_layover: answers['q7'] || null,
+      improvement_suggestions: answers['q7b'] || null,
+      contact_name: answers['q8-name'] || null,
+      contact_airline: answers['q8-airline'] || null,
+      contact_email: answers['q8-email'] || null
+    });
+  } catch(e) {
+    console.log('Save error:', e);
+  }
+
+  // Show thank you regardless
+  document.getElementById('step-8').classList.remove('active');
+  document.getElementById('step-thanks').classList.add('active');
+  document.getElementById('progress').style.width = '100%';
+  document.getElementById('progress-label').textContent = 'Gotowe!';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+updateProgress();
+</script>
+</body>
+</html>
