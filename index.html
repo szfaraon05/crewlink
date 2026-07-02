@@ -1,0 +1,2523 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrewLink</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Syne:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBdExlBhsgPIPmXWkA_6LQGx9X92OL2RjY&libraries=places&language=pl"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0B1628;--navy2:#132240;--navy3:#1E3A5F;
+  --sky:#3B8BEB;--sky2:#60A8F5;
+  --gold:#E8B84B;--gold2:rgba(232,184,75,0.13);
+  --green:#2DD4A0;--green2:rgba(45,212,160,0.13);
+  --red:#F06060;--red2:rgba(240,96,96,0.13);
+  --muted:#8BA3C0;--border:rgba(59,139,235,0.18);--border2:rgba(59,139,235,0.34);
+  --surface:rgba(19,34,64,0.96);--txt:#F4F7FF
+}
+html,body{height:100%;font-family:'DM Sans',sans-serif;background:var(--navy);color:var(--txt);overflow-x:hidden}
+
+/* ── LOADING ── */
+#loading-screen{position:fixed;inset:0;background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:16px}
+#loading-screen .logo{font-family:'Syne',sans-serif;font-size:32px;font-weight:700}
+#loading-screen .logo span{color:var(--sky2)}
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--sky2);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── OVERLAY ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(4,10,22,.88);z-index:3000;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{background:var(--navy2);border:0.5px solid var(--border2);border-radius:16px;padding:28px;width:100%;max-width:420px;animation:fadeUp .22s ease;max-height:90vh;overflow-y:auto}
+.modal h2{font-family:'Syne',sans-serif;font-size:21px;font-weight:700;margin-bottom:5px}
+.modal .sub{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.55}
+.modal-close{float:right;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;margin-top:-4px}
+.modal-close:hover{color:var(--txt)}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.field input,.field select,.field textarea{width:100%;background:var(--navy3);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--txt);font-family:'DM Sans',sans-serif;outline:none;transition:border .13s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--sky2)}
+.field select option{background:var(--navy2)}
+.err{font-size:11px;color:var(--red);margin-bottom:10px;display:none;padding:8px 12px;background:var(--red2);border-radius:6px;border:0.5px solid rgba(240,96,96,.3)}
+.err.show{display:block}
+.divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--muted);font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:.5px;background:var(--border)}
+
+/* ── BUTTONS ── */
+.btn-p{background:var(--sky);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;width:100%}
+.btn-p:hover{background:var(--sky2)}
+.btn-p:disabled{opacity:.5;cursor:not-allowed}
+.btn-o{background:transparent;color:var(--sky2);border:0.5px solid var(--border2);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.btn-o:hover{border-color:var(--sky2);color:var(--txt)}
+.btn-sm{padding:5px 12px!important;font-size:11px!important;border-radius:6px!important}
+
+/* ── NAV ── */
+.lnav{display:flex;align-items:center;justify-content:space-between;padding:13px 24px;border-bottom:0.5px solid var(--border);background:var(--navy2)}
+.mnav{display:none;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:0.5px solid var(--border);background:var(--navy2);position:sticky;top:0;z-index:1000;height:52px}
+.mnav.visible{display:flex}
+.logo{font-family:'Syne',sans-serif;font-weight:700;font-size:17px;color:var(--txt);cursor:pointer;letter-spacing:-.3px}
+.logo span{color:var(--sky2)}
+.nav-tabs{display:flex;height:52px}
+.nt{height:52px;padding:0 13px;font-size:12px;cursor:pointer;color:var(--muted);border:none;background:transparent;font-family:'DM Sans',sans-serif;transition:color .13s;white-space:nowrap;border-bottom:2px solid transparent;display:flex;align-items:center;gap:5px}
+.nt i{font-size:13px}
+.nt.active{color:var(--sky2);border-bottom-color:var(--sky2)}
+.nt:hover:not(.active){color:var(--txt)}
+.nav-r{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.city-badge{font-size:11px;background:rgba(59,139,235,.13);border:0.5px solid var(--border);color:var(--sky2);padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:4px}
+.nav-av{width:30px;height:30px;border-radius:50%;background:var(--navy3);border:1.5px solid var(--sky);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--sky2);cursor:pointer;overflow:hidden}
+.nav-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+
+/* ── PAGES ── */
+.page{display:none}
+.page.active{display:block}
+
+/* ── LANDING ── */
+.hero{text-align:center;padding:60px 24px 36px;max-width:580px;margin:0 auto}
+.hero-label{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--sky2);margin-bottom:14px}
+.hero h1{font-family:'Syne',sans-serif;font-size:40px;font-weight:700;line-height:1.08;margin-bottom:14px}
+.hero h1 em{color:var(--sky2);font-style:normal}
+.hero p{font-size:14px;color:var(--muted);margin:0 auto 26px;line-height:1.65}
+.hero-btns{display:flex;gap:11px;justify-content:center;flex-wrap:wrap}
+.btn-hero{background:var(--sky);color:#fff;border:none;padding:12px 26px;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s}
+.btn-hero:hover{background:var(--sky2)}
+.btn-hero-o{background:transparent;color:var(--sky2);border:0.5px solid var(--border2);padding:12px 26px;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s}
+.btn-hero-o:hover{border-color:var(--sky2);color:var(--txt)}
+.stats-row{display:flex;gap:12px;justify-content:center;margin:28px 0;flex-wrap:wrap;padding:0 24px}
+.sp{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px 20px;text-align:center;min-width:115px}
+.sp .num{font-family:'Syne',sans-serif;font-size:24px;font-weight:700;color:var(--sky2)}
+.sp .lbl{font-size:10px;color:var(--muted);margin-top:3px}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:11px;padding:0 24px 48px;max-width:860px;margin:0 auto}
+.feat{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:16px}
+.feat-ic{font-size:20px;color:var(--sky2);margin-bottom:8px}
+.feat h3{font-size:13px;font-weight:500;color:var(--txt);margin-bottom:4px}
+.feat p{font-size:12px;color:var(--muted);line-height:1.55}
+
+/* ── DASHBOARD ── */
+.dash{padding:16px 20px;max-width:960px;margin:0 auto}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+.dc{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:15px}
+.ct{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.city-name{font-family:'Syne',sans-serif;font-size:24px;font-weight:700}
+.fdot{width:8px;height:8px;background:var(--green);border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(45,212,160,.2)}
+.tl{font-size:11px;color:var(--gold);background:var(--gold2);border:0.5px solid rgba(232,184,75,.3);padding:3px 8px;border-radius:6px;margin-top:4px;display:inline-block}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:0.5px solid var(--border);color:var(--muted);cursor:pointer;transition:all .13s;background:transparent;font-family:'DM Sans',sans-serif}
+.chip:hover,.chip.sel{border-color:var(--sky2);color:var(--sky2);background:rgba(59,139,235,.1)}
+.crew-list{display:flex;flex-direction:column;gap:6px}
+.ci{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;border:0.5px solid transparent;cursor:pointer;transition:all .13s}
+.ci:hover{background:rgba(59,139,235,.07);border-color:var(--border)}
+.cav{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;overflow:hidden}
+.cav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.cn{font-size:12px;font-weight:500;color:var(--txt);display:flex;align-items:center;gap:4px}
+.cr{font-size:10px;color:var(--muted)}
+.cs{font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.sf{background:var(--green2);color:var(--green)}
+.sc{background:var(--gold2);color:var(--gold)}
+.empty-state{text-align:center;padding:24px 16px;color:var(--muted);font-size:12px}
+.empty-state i{font-size:28px;display:block;margin-bottom:8px;opacity:.4}
+
+/* ── CHAT ── */
+.chat-wrap{display:flex;height:calc(100vh - 52px)}
+.chat-sidebar{width:240px;border-right:0.5px solid var(--border);background:var(--navy2);flex-shrink:0;overflow-y:auto;display:flex;flex-direction:column}
+.chat-sec-label{padding:10px 14px 5px;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-bottom:0.5px solid var(--border)}
+.room{display:flex;align-items:center;gap:8px;padding:9px 13px;cursor:pointer;transition:all .13s;border-left:2px solid transparent}
+.room:hover{background:rgba(59,139,235,.06)}
+.room.active{background:rgba(59,139,235,.1);border-left-color:var(--sky2)}
+.room-icon{width:30px;height:30px;border-radius:8px;background:var(--navy3);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.room-name{font-size:12px;font-weight:500;color:var(--txt)}
+.room-last{font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px}
+.online-pill{width:7px;height:7px;border-radius:50%;background:var(--green);margin-left:auto;flex-shrink:0}
+.chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.chat-header{padding:11px 15px;border-bottom:0.5px solid var(--border);background:var(--navy2);display:flex;align-items:center;gap:9px;flex-shrink:0}
+.chat-title{font-size:14px;font-weight:500;color:var(--txt)}
+.chat-sub{font-size:11px;color:var(--muted)}
+.online-dot{width:7px;height:7px;background:var(--green);border-radius:50%;flex-shrink:0}
+.chat-messages{flex:1;overflow-y:auto;padding:14px 15px;display:flex;flex-direction:column;gap:9px;background:var(--navy)}
+.msg{display:flex;gap:8px;align-items:flex-end;max-width:75%}
+.msg.mine{align-self:flex-end;flex-direction:row-reverse}
+.msg-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;overflow:hidden}
+.msg-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.msg-bubble{padding:8px 11px;border-radius:12px;font-size:13px;line-height:1.5}
+.msg .msg-bubble{background:var(--navy3);color:var(--txt);border-radius:4px 12px 12px 12px}
+.msg.mine .msg-bubble{background:var(--sky);color:#fff;border-radius:12px 4px 12px 12px}
+.msg-name{font-size:10px;color:var(--muted);margin-bottom:3px}
+.msg-time{font-size:9px;color:var(--muted);margin-top:3px}
+.chat-input-area{padding:10px 14px;border-top:0.5px solid var(--border);background:var(--navy2);display:flex;gap:8px;align-items:center;flex-shrink:0}
+.chat-input{flex:1;background:var(--navy3);border:0.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--txt);font-family:'DM Sans',sans-serif;outline:none}
+.chat-input:focus{border-color:var(--sky2)}
+.chat-send{background:var(--sky);border:none;border-radius:8px;padding:9px 13px;color:#fff;cursor:pointer;font-size:14px;flex-shrink:0;transition:background .13s}
+.chat-send:hover{background:var(--sky2)}
+.chat-send:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── MAP ── */
+.map-wrap{display:flex;flex-direction:column;height:calc(100vh - 52px)}
+.map-header{display:flex;align-items:center;gap:8px;padding:10px 18px;background:var(--navy2);border-bottom:0.5px solid var(--border)}
+.map-search{flex:1;background:var(--navy3);border:0.5px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--txt);font-family:'DM Sans',sans-serif;outline:none}
+.map-search:focus{border-color:var(--sky2)}
+.map-search::placeholder{color:var(--muted)}
+#leaflet-map{flex:1;min-height:300px}
+.leaflet-container{background:#0d1f35!important}
+.leaflet-popup-content-wrapper{background:transparent;box-shadow:none;padding:0;border:none}
+.leaflet-popup-content{margin:0}
+.leaflet-popup-tip-container{display:none}
+.leaflet-bar a{background:var(--navy2);color:var(--sky2);border-color:var(--border)}
+.crew-popup{background:#132240;color:var(--txt);border:0.5px solid rgba(59,139,235,.35);border-radius:10px;padding:11px 13px;font-family:'DM Sans',sans-serif;min-width:140px}
+.cpp-city{font-weight:600;font-size:13px;color:var(--sky2);margin-bottom:4px}
+.cpp-count{font-size:11px;color:var(--muted)}
+.cpp-status{font-size:11px;color:var(--green);margin-top:3px}
+.city-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:7px;padding:10px 18px;background:var(--navy2);border-top:0.5px solid var(--border)}
+.cc{background:var(--surface);border:0.5px solid var(--border);border-radius:9px;padding:9px 12px;cursor:pointer;transition:all .13s}
+.cc:hover{border-color:var(--sky2)}
+.cc-name{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;color:var(--txt)}
+.cc-count{font-size:10px;color:var(--muted);margin-top:2px}
+.cc-count span{color:var(--sky2);font-weight:500}
+
+/* ── PROFILE ── */
+.prof{padding:18px 20px;max-width:680px;margin:0 auto}
+.ph{display:flex;align-items:center;gap:15px;background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.pav-wrap{position:relative;width:70px;height:70px;cursor:pointer;flex-shrink:0}
+.pav-wrap .pav{width:70px;height:70px;border-radius:50%;background:var(--navy3);border:2px solid var(--sky);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:500;color:var(--sky2);font-family:'Syne',sans-serif;overflow:hidden}
+.pav-wrap .pav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pav-edit{position:absolute;bottom:1px;right:1px;width:22px;height:22px;background:var(--sky);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;border:2px solid var(--navy2);pointer-events:none}
+.pn{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;color:var(--txt)}
+.pm{font-size:11px;color:var(--muted);margin-top:3px}
+.vb{font-size:10px;background:var(--green2);color:var(--green);border:0.5px solid rgba(45,212,160,.3);padding:2px 8px;border-radius:10px;display:inline-block;margin-top:5px}
+.ps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.pst{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.pst-n{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--sky2)}
+.pst-l{font-size:10px;color:var(--muted);margin-top:2px}
+.city-select-wrap{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px}
+.city-select-wrap .ct{margin-bottom:8px}
+.city-btns{display:flex;gap:7px;flex-wrap:wrap}
+.city-btn{font-size:12px;padding:5px 12px;border-radius:20px;border:0.5px solid var(--border);color:var(--muted);cursor:pointer;background:transparent;font-family:'DM Sans',sans-serif;transition:all .13s}
+.city-btn:hover,.city-btn.active{border-color:var(--sky2);color:var(--sky2);background:rgba(59,139,235,.1)}
+
+/* ── MINI CALENDAR ── */
+.mini-cal{background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:15px;cursor:pointer;transition:all .13s}
+.mini-cal:hover{border-color:var(--sky2)}
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal-day-name{font-size:9px;color:var(--muted);padding:2px 0;text-transform:uppercase}
+.cal-day{font-size:11px;padding:4px 2px;border-radius:5px;color:var(--muted);min-width:22px;text-align:center}
+.cal-day.today{background:var(--sky);color:#fff;font-weight:600;border-radius:5px}
+.cal-day.has-event{color:var(--green);font-weight:600}
+.cal-day.other-month{opacity:.25}
+.cal-overlay{display:none;position:fixed;inset:0;background:rgba(4,10,22,.88);z-index:3000;align-items:center;justify-content:center;padding:16px}
+.cal-overlay.open{display:flex}
+.cal-full{background:var(--navy2);border:0.5px solid var(--border2);border-radius:16px;padding:22px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;animation:fadeUp .22s ease}
+.cal-full-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center;margin-bottom:4px}
+.cal-full-day-name{font-size:10px;color:var(--muted);padding:3px 0;text-transform:uppercase}
+.cal-full-day{font-size:13px;padding:8px 3px;border-radius:8px;cursor:pointer;color:var(--muted);transition:all .13s;position:relative}
+.cal-full-day:hover{background:rgba(59,139,235,.15);color:var(--sky2)}
+.cal-full-day.today{background:var(--sky);color:#fff;font-weight:600}
+.cal-full-day.selected{background:rgba(59,139,235,.2);color:var(--sky2);border:0.5px solid var(--sky2)}
+.cal-full-day.has-event{color:var(--green);font-weight:600}
+.cal-full-day.has-event::after{content:"";width:5px;height:5px;background:var(--green);border-radius:50%;position:absolute;bottom:1px;left:50%;transform:translateX(-50%)}
+.cal-full-day.has-flight::after{content:"";width:5px;height:5px;background:var(--red);border-radius:50%;position:absolute;bottom:1px;left:50%;transform:translateX(-50%)}
+.cal-full-day.has-flight{color:var(--red)}
+.cal-day.has-flight{color:var(--red);font-weight:600}
+.cal-full-day.other-month{opacity:.2}
+.cal-nav{background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;padding:2px 8px;line-height:1;border-radius:6px;transition:all .13s}
+.cal-nav:hover{color:var(--sky2);background:rgba(59,139,235,.1)}
+/* ── TOAST ── */
+.toast{position:fixed;bottom:20px;right:20px;background:var(--navy2);border:0.5px solid var(--green);color:var(--green);padding:10px 15px;border-radius:9px;font-size:12px;transform:translateY(70px);opacity:0;transition:all .28s;z-index:9999;pointer-events:none;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+
+/* step indicator */
+.step-row{display:flex;gap:5px;margin-bottom:18px}
+.step{flex:1;height:3px;border-radius:2px;background:var(--navy3)}
+.step.done{background:var(--sky2)}
+.step.active{background:var(--sky)}
+
+/* ── BOTTOM NAV (mobile) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--navy2);border-top:0.5px solid var(--border);z-index:1000;padding:6px 0 max(6px,env(safe-area-inset-bottom));justify-content:space-around;align-items:center}
+@media(max-width:768px){.bottom-nav.visible{display:flex}}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 12px;border-radius:10px;transition:all .15s;border:none;background:none;color:var(--muted);font-family:'DM Sans',sans-serif;min-width:52px}
+.bn-item i{font-size:20px;transition:color .15s}
+.bn-item span{font-size:9px;letter-spacing:.2px;transition:color .15s}
+.bn-item.active{color:var(--sky2)}
+.bn-item.active i{color:var(--sky2)}
+
+@media(max-width:768px){
+  .dash-grid{grid-template-columns:1fr}
+  .chat-sidebar{width:56px}
+  .room-name,.room-last{display:none}
+  .mnav .nav-tabs{display:none}
+  .hero h1{font-size:28px}
+  .dash{padding-bottom:80px}
+  .reviews-wrap{padding-bottom:80px}
+  .flights-wrap{padding-bottom:80px}
+  .prof{padding-bottom:80px}
+  .chat-wrap{height:calc(100vh - 52px - 64px)}
+  .chat-input-area{padding-bottom:max(10px,env(safe-area-inset-bottom))}
+  .map-wrap{height:calc(100vh - 52px - 64px)}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="logo">Crew<span>Link</span></div>
+  <div class="spinner"></div>
+</div>
+
+<!-- ══ LOGIN MODAL ══ -->
+<div class="overlay" id="overlay-login">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('login')"><i class="ti ti-x"></i></button>
+    <h2>Zaloguj się</h2>
+    <p class="sub">Tylko zweryfikowane załogi lotnicze.</p>
+    <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="twoj@email.com" autocomplete="email"></div>
+    <div class="field"><label>Hasło</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
+    <div class="err" id="login-err"></div>
+    <button class="btn-p" id="login-btn" onclick="doLogin()" style="margin-bottom:12px">Zaloguj się</button>
+    <div class="divider">lub</div>
+    <button class="btn-o" style="width:100%" onclick="closeModal('login');openModal('register')">Zarejestruj się</button>
+  </div>
+</div>
+
+<!-- ══ REGISTER MODAL ══ -->
+<div class="overlay" id="overlay-register">
+  <div class="modal" style="max-width:460px">
+    <button class="modal-close" onclick="closeModal('register')"><i class="ti ti-x"></i></button>
+    <div class="step-row">
+      <div class="step active" id="rs1"></div>
+      <div class="step" id="rs2"></div>
+    </div>
+    <!-- Step 1 -->
+    <div id="reg-s1">
+      <h2>Dołącz do CrewLink</h2>
+      <p class="sub">Krok 1 z 2 – Twoje konto</p>
+      <div class="field"><label>Imię i nazwisko</label><input type="text" id="reg-name" placeholder="Anna Kowalska"></div>
+      <div class="field"><label>Email</label><input type="email" id="reg-email" placeholder="anna@lot.pl" autocomplete="email"></div>
+      <div class="field"><label>Hasło</label><input type="password" id="reg-pass" placeholder="Min. 8 znaków" autocomplete="new-password"></div>
+      <div class="err" id="reg-err1"></div>
+      <button class="btn-p" onclick="regStep1()">Dalej →</button>
+    </div>
+    <!-- Step 2 -->
+    <div id="reg-s2" style="display:none">
+      <h2>Twój profil</h2>
+      <p class="sub">Krok 2 z 2 – Dane zawodowe</p>
+      <div class="field"><label>Linia lotnicza</label>
+        <select id="reg-airline">
+          <option value="">Wybierz linię...</option>
+          <option>LOT Polish Airlines</option><option>Ryanair</option><option>Wizz Air</option>
+          <option>Emirates</option><option>Lufthansa</option><option>Air France</option>
+          <option>British Airways</option><option>Qatar Airways</option><option>Turkish Airlines</option>
+          <option>KLM</option><option>Swiss</option><option>Inna linia</option>
+        </select>
+      </div>
+      <div class="field"><label>Rola</label>
+        <select id="reg-role">
+          <option>Kapitan</option><option>Pierwszy Oficer (F/O)</option>
+          <option>Purser</option><option>Stewardessa / Steward</option><option>Inżynier pokładowy</option>
+        </select>
+      </div>
+      <div class="field"><label>Staż (lata)</label>
+        <input type="number" id="reg-exp" placeholder="np. 7" min="0" max="50">
+      </div>
+      <div class="field"><label>Aktualne miasto pobytu</label>
+        <select id="reg-city">
+          <option value="">Wybierz miasto...</option>
+          <option>Dubai</option><option>Warszawa</option><option>Londyn</option>
+          <option>Frankfurt</option><option>Paryż</option><option>Amsterdam</option>
+          <option>Nowy Jork</option><option>Bangkok</option><option>Tokio</option>
+          <option>Singapur</option><option>Doha</option><option>Istanbul</option>
+        </select>
+      </div>
+      <div class="err" id="reg-err2"></div>
+      <button class="btn-p" id="reg-btn" onclick="doRegister()" style="margin-bottom:8px">Zarejestruj się</button>
+      <button class="btn-o" style="width:100%" onclick="regBack()">← Wróć</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LANDING NAV ══ -->
+<div id="p-landing" class="page active">
+  <nav class="lnav">
+    <div class="logo">Crew<span>Link</span></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn-o btn-sm" onclick="openModal('login')">Zaloguj się</button>
+      <button class="btn-hero" style="padding:7px 15px;font-size:13px;border-radius:7px" onclick="openModal('register')">Dołącz teraz</button>
+    </div>
+  </nav>
+  <div class="hero">
+    <div class="hero-label">tylko dla zweryfikowanych załóg</div>
+    <h1>Znajdź kogoś<br>na <em>layoverze</em>.<br>Teraz.</h1>
+    <p>Ekskluzywna sieć dla pilotów i stewardów. Weryfikacja przez dane służbowe. Zero zbędnych informacji – tylko Twoja obecność i miasto pobytu.</p>
+    <div class="hero-btns">
+      <button class="btn-hero" onclick="openModal('register')">Zarejestruj się za darmo</button>
+      <button class="btn-hero-o" onclick="openModal('login')">Zaloguj się</button>
+    </div>
+  </div>
+  <div class="stats-row">
+    <div class="sp"><div class="num" id="stat-users">0</div><div class="lbl">Zarejestrowanych</div></div>
+    <div class="sp"><div class="num" id="stat-cities">0</div><div class="lbl">Aktywnych miast</div></div>
+    <div class="sp"><div class="num" id="stat-msgs">0</div><div class="lbl">Wiadomości</div></div>
+  </div>
+  <div class="features">
+    <div class="feat"><div class="feat-ic"><i class="ti ti-map-pin"></i></div><h3>Kto jest w pobliżu?</h3><p>Sprawdź kto z branży jest w tym samym mieście. Bez hotelu i numeru lotu.</p></div>
+    <div class="feat"><div class="feat-ic"><i class="ti ti-message-circle"></i></div><h3>Czat lokalny</h3><p>Pisz z załogami w Twoim mieście w czasie rzeczywistym.</p></div>
+    <div class="feat"><div class="feat-ic"><i class="ti ti-map"></i></div><h3>Mapa świata</h3><p>Globalny widok gdzie teraz są załogi ze wszystkich linii.</p></div>
+    <div class="feat"><div class="feat-ic"><i class="ti ti-shield-check"></i></div><h3>Tylko załogi</h3><p>Weryfikacja przy rejestracji. Zero postronnych osób.</p></div>
+  </div>
+</div>
+
+<!-- ══ MAIN NAV ══ -->
+<nav class="mnav" id="main-nav">
+  <div style="display:flex;align-items:center;gap:0">
+    <div class="logo" onclick="show('dashboard')" style="margin-right:16px">Crew<span>Link</span></div>
+    <div class="nav-tabs">
+      <button class="nt active" onclick="show('dashboard')"><i class="ti ti-layout-dashboard"></i>Dashboard</button>
+      <button class="nt" onclick="show('chat')"><i class="ti ti-message-circle"></i>Czat</button>
+      <button class="nt" onclick="show('miejsca')"><i class="ti ti-star"></i>Miejsca</button>
+      <button class="nt" onclick="show('map')"><i class="ti ti-map"></i>Mapa</button>
+      <button class="nt" onclick="show('profile')"><i class="ti ti-user"></i>Profil</button>
+    </div>
+  </div>
+  <div class="nav-r">
+    <span class="city-badge" id="nav-city"><i class="ti ti-map-pin" style="font-size:10px"></i><span id="nav-city-text">–</span></span>
+    <div class="nav-av" id="nav-av" onclick="show('profile')"></div>
+  </div>
+</nav>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="p-dashboard" class="page">
+  <div class="dash">
+    <div class="dash-grid">
+
+      <div class="dc" id="next-flight-card" style="display:none;cursor:pointer;grid-column:1/-1" onclick="show('profile')">
+        <div class="ct" style="display:flex;align-items:center;justify-content:space-between">Następny lot <i class="ti ti-plane-departure" style="font-size:11px;opacity:.7;color:var(--sky2)"></i></div>
+        <div style="display:flex;align-items:center;gap:14px">
+          <div>
+            <div style="font-family:Syne,sans-serif;font-size:22px;font-weight:700;color:var(--txt)" id="nf-route">– → –</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px" id="nf-date"></div>
+          </div>
+          <div style="margin-left:auto;text-align:right">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Odlot za</div>
+            <div style="font-family:Syne,sans-serif;font-size:20px;font-weight:700;color:var(--sky2)" id="nf-countdown">–</div>
+          </div>
+        </div>
+        <div id="nf-extra" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      </div>
+
+      <div class="dc" onclick="show('profile')" style="cursor:pointer">
+        <div class="ct" style="display:flex;align-items:center;justify-content:space-between">Twoje miasto<i class="ti ti-pencil" style="font-size:11px;opacity:.5"></i></div>
+        <div style="display:flex;align-items:center;gap:11px">
+          <div class="fdot"></div>
+          <div>
+            <div class="city-name" id="dash-city">–</div>
+            <div class="tl" id="dash-status">Ustaw status</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted)">Kliknij aby zmienić miasto lub status</div>
+      </div>
+
+      <div class="dc">
+        <div class="ct">Mój status</div>
+        <div class="chips" id="status-chips">
+          <button class="chip" onclick="setStatus('☕ Kawa?')">☕ Kawa?</button>
+          <button class="chip" onclick="setStatus('🚶 Spacer')">🚶 Spacer</button>
+          <button class="chip" onclick="setStatus('🍜 Jedzenie')">🍜 Jedzenie</button>
+          <button class="chip" onclick="setStatus('😴 Odpoczywam')">😴 Odpoczywam</button>
+          <button class="chip" onclick="setStatus('')">✕ Wyczyść</button>
+        </div>
+        <button class="btn-p" onclick="show('chat')" style="padding:8px;font-size:12px"><i class="ti ti-message-circle" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Otwórz czat</button>
+      </div>
+
+      <div class="mini-cal full" onclick="openCalendar()">
+        <div class="cal-header">
+          <div class="ct" style="margin:0">Kalendarz</div>
+          <span id="mini-cal-month" style="font-size:11px;color:var(--sky2)"></span>
+        </div>
+        <div class="cal-grid">
+          <div class="cal-day-name">Pn</div><div class="cal-day-name">Wt</div><div class="cal-day-name">Sr</div>
+          <div class="cal-day-name">Cz</div><div class="cal-day-name">Pt</div><div class="cal-day-name">So</div><div class="cal-day-name">Nd</div>
+        </div>
+        <div class="cal-grid" id="mini-cal-days"></div>
+      </div>
+
+      <div class="dc">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="ct" style="margin:0">Załogi w <span id="crew-city-label">Twoim mieście</span></div>
+          <span style="font-size:10px;color:var(--muted)" id="crew-count-label"></span>
+        </div>
+        <div class="crew-list" id="crew-list">
+          <div class="empty-state"><i class="ti ti-users"></i>Ładowanie załóg...</div>
+        </div>
+      </div>
+
+      <div class="dc">
+        <div class="ct">Aktywne miasta</div>
+        <div id="active-cities-list" style="display:flex;flex-direction:column;gap:6px">
+          <div class="empty-state"><i class="ti ti-map-pin"></i>Ładowanie...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ CHAT ══ -->
+<div id="p-chat" class="page">
+  <div class="chat-wrap">
+    <div class="chat-sidebar">
+      <div class="chat-sec-label">Pokoje</div>
+      <div id="chat-rooms-list"></div>
+    </div>
+    <div class="chat-main">
+      <div class="chat-header">
+        <div class="online-dot"></div>
+        <div>
+          <div class="chat-title" id="chat-title">Wybierz pokój</div>
+          <div class="chat-sub" id="chat-sub">–</div>
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="empty-state" style="margin:auto"><i class="ti ti-message-circle"></i>Wybierz miasto z listy po lewej aby dołączyć do czatu.</div>
+      </div>
+      <div class="chat-input-area">
+        <input class="chat-input" type="text" id="chat-input" placeholder="Napisz wiadomość..." onkeydown="if(event.key==='Enter')sendMessage()" disabled>
+        <button class="chat-send" id="chat-send-btn" onclick="sendMessage()" disabled><i class="ti ti-send" style="font-size:14px"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ MIEJSCA PAGE ══ -->
+<div id="p-miejsca" class="page">
+  <div style="padding:16px 20px;max-width:900px;margin:0 auto">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <h2 style="font-family:Syne,sans-serif;font-size:20px;font-weight:700">Miejsca & Crew-Tips</h2>
+      <button class="btn-p" style="width:auto;padding:8px 16px;font-size:12px" onclick="openModal('add-place')">
+        <i class="ti ti-plus" style="font-size:12px;vertical-align:-1px;margin-right:4px"></i>Dodaj miejsce
+      </button>
+    </div>
+
+    <!-- City filter -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--muted)">Miasto:</span>
+      <select id="places-city-filter" onchange="loadPlaces()" style="background:var(--navy3);border:0.5px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--txt);font-family:DM Sans,sans-serif;outline:none">
+        <option value="">Wszystkie miasta</option>
+        <optgroup label="Europa">
+          <option>🇵🇱 Warszawa</option><option>🇬🇧 Londyn</option><option>🇩🇪 Frankfurt</option>
+          <option>🇫🇷 Paryż</option><option>🇳🇱 Amsterdam</option><option>🇪🇸 Madryt</option>
+          <option>🇮🇹 Rzym</option><option>🇦🇹 Wiedeń</option><option>🇨🇭 Zurych</option>
+        </optgroup>
+        <optgroup label="Bliski Wschód">
+          <option>🇦🇪 Dubai</option><option>🇶🇦 Doha</option><option>🇦🇪 Abu Dhabi</option>
+          <option>🇹🇷 Istanbul</option><option>🇮🇱 Tel Awiw</option>
+        </optgroup>
+        <optgroup label="Azja">
+          <option>🇹🇭 Bangkok</option><option>🇯🇵 Tokio</option><option>🇸🇬 Singapur</option>
+          <option>🇭🇰 Hong Kong</option><option>🇰🇷 Seul</option><option>🇲🇾 Kuala Lumpur</option>
+          <option>🇮🇳 Delhi</option><option>🇮🇳 Mumbai</option>
+        </optgroup>
+        <optgroup label="Ameryki">
+          <option>🇺🇸 Nowy Jork</option><option>🇺🇸 Los Angeles</option><option>🇺🇸 Chicago</option>
+          <option>🇨🇦 Toronto</option><option>🇺🇸 Miami</option><option>🇧🇷 São Paulo</option>
+        </optgroup>
+        <optgroup label="Afryka i Oceania">
+          <option>🇰🇪 Nairobi</option><option>🇿🇦 Johannesburg</option><option>🇲🇦 Casablanca</option>
+          <option>🇦🇺 Sydney</option><option>🇦🇺 Melbourne</option>
+        </optgroup>
+      </select>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="cat-filters">
+        <button class="chip sel" onclick="filterCat(this,'')" data-cat="">Wszystkie</button>
+        <button class="chip" onclick="filterCat(this,'Restauracja')" data-cat="Restauracja">Restauracje</button>
+        <button class="chip" onclick="filterCat(this,'Kawiarnia')" data-cat="Kawiarnia">Kawiarnie</button>
+        <button class="chip" onclick="filterCat(this,'Transport')" data-cat="Transport">Transport</button>
+        <button class="chip" onclick="filterCat(this,'Hotel')" data-cat="Hotel">Hotele</button>
+        <button class="chip" onclick="filterCat(this,'Inne')" data-cat="Inne">Inne</button>
+      </div>
+    </div>
+
+    <!-- Places list -->
+    <div id="places-list">
+      <div class="empty-state"><i class="ti ti-star"></i>Ładowanie miejsc...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PLACE DETAIL MODAL ══ -->
+<div class="overlay" id="overlay-place-detail">
+  <div style="background:var(--navy2);width:100%;max-width:820px;border-radius:16px;border:0.5px solid var(--border2);overflow:hidden;max-height:90vh;display:flex;flex-direction:column;animation:fadeUp .22s ease">
+    <!-- Hero -->
+    <div id="pd-hero" style="height:140px;background:linear-gradient(135deg,var(--navy3),var(--navy2));display:flex;align-items:center;padding:0 24px;gap:18px;flex-shrink:0;position:relative">
+      <button onclick="closeModal('place-detail')" style="position:absolute;top:12px;right:14px;background:rgba(0,0,0,.5);border:none;border-radius:50%;width:28px;height:28px;color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center"><i class="ti ti-x"></i></button>
+      <div style="width:64px;height:64px;border-radius:14px;background:var(--navy3);display:flex;align-items:center;justify-content:center;font-size:32px;flex-shrink:0" id="pd-icon">🍽️</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <div id="pd-name" style="font-family:Syne,sans-serif;font-size:22px;font-weight:700;color:var(--txt);flex:1"></div>
+          <button id="pd-like-btn" onclick="toggleLike()" style="background:none;border:none;font-size:22px;cursor:pointer;flex-shrink:0;padding:0;margin-top:2px">🤍</button>
+        </div>
+        <div id="pd-city" style="font-size:12px;color:var(--muted);margin-top:3px"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap">
+          <span id="pd-category" style="background:rgba(59,139,235,.15);color:var(--sky2);border-radius:5px;padding:2px 8px;font-size:11px"></span>
+          <div id="pd-discount" style="display:none;background:var(--green2);border:0.5px solid rgba(45,212,160,.25);border-radius:5px;padding:2px 8px;font-size:11px;color:var(--green)"></div>
+          <button id="pd-maps-btn" style="background:rgba(59,139,235,.12);border:0.5px solid var(--border);border-radius:5px;padding:2px 9px;color:var(--sky2);cursor:pointer;font-size:11px;font-family:DM Sans,sans-serif;display:flex;align-items:center;gap:3px">
+            <i class="ti ti-brand-google-maps" style="font-size:11px"></i>Maps
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Two column reviews -->
+    <div style="overflow-y:auto;flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0">
+      <!-- LEFT: Google Reviews -->
+      <div style="padding:18px 20px;border-right:0.5px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:12px">
+          <i class="ti ti-brand-google" style="font-size:14px;color:#4285F4"></i>
+          <div class="ct" style="margin:0">Opinie Google</div>
+        </div>
+        <div id="pd-google-rating" style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="font-family:Syne,sans-serif;font-size:32px;font-weight:700;color:var(--txt)" id="pd-g-score">–</div>
+          <div>
+            <div id="pd-g-stars" style="color:#FBBC04;font-size:14px;letter-spacing:1px"></div>
+            <div id="pd-g-count" style="font-size:11px;color:var(--muted);margin-top:1px"></div>
+          </div>
+        </div>
+        <div id="pd-google-reviews" style="display:flex;flex-direction:column;gap:9px">
+          <div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0">
+            <i class="ti ti-brand-google" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>
+            Ładowanie opinii Google...
+          </div>
+        </div>
+      </div>
+      <!-- RIGHT: CrewLink Reviews -->
+      <div style="padding:18px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:7px">
+            <i class="ti ti-plane" style="font-size:14px;color:var(--sky2)"></i>
+            <div class="ct" style="margin:0">Opinie załóg</div>
+          </div>
+          <button class="btn-p" style="width:auto;padding:4px 10px;font-size:11px" onclick="openAddReview()">+ Dodaj</button>
+        </div>
+        <div id="pd-crew-rating" style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="font-family:Syne,sans-serif;font-size:32px;font-weight:700;color:var(--txt)" id="pd-c-score">–</div>
+          <div>
+            <div id="pd-c-stars" style="color:var(--gold);font-size:14px;letter-spacing:1px"></div>
+            <div id="pd-c-count" style="font-size:11px;color:var(--muted);margin-top:1px"></div>
+          </div>
+        </div>
+        <div id="pd-reviews" style="display:flex;flex-direction:column;gap:9px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD PLACE MODAL ══ -->
+<div class="overlay" id="overlay-add-place">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('add-place')"><i class="ti ti-x"></i></button>
+    <h2>Dodaj miejsce</h2>
+    <p class="sub">Podziel się ze społecznością CrewLink.</p>
+    <div class="field"><label>Nazwa miejsca</label>
+      <input type="text" id="ap-name" placeholder="np. Ravi's Biriyani" oninput="checkDuplicate()">
+      <div id="ap-duplicate-warn" style="display:none;font-size:11px;color:var(--gold);margin-top:4px;padding:6px 10px;background:var(--gold2);border-radius:6px">
+        ⚠️ Miejsce o tej nazwie już istnieje w tym mieście.
+      </div>
+    </div>
+    <div class="field"><label>Miasto</label>
+      <select id="ap-city">
+        <option value="">Wybierz miasto...</option>
+        <optgroup label="Europa">
+          <option>🇵🇱 Warszawa</option><option>🇬🇧 Londyn</option><option>🇩🇪 Frankfurt</option>
+          <option>🇫🇷 Paryż</option><option>🇳🇱 Amsterdam</option><option>🇪🇸 Madryt</option>
+          <option>🇮🇹 Rzym</option><option>🇦🇹 Wiedeń</option><option>🇨🇭 Zurych</option>
+        </optgroup>
+        <optgroup label="Bliski Wschód">
+          <option>🇦🇪 Dubai</option><option>🇶🇦 Doha</option><option>🇦🇪 Abu Dhabi</option>
+          <option>🇹🇷 Istanbul</option><option>🇮🇱 Tel Awiw</option>
+        </optgroup>
+        <optgroup label="Azja">
+          <option>🇹🇭 Bangkok</option><option>🇯🇵 Tokio</option><option>🇸🇬 Singapur</option>
+          <option>🇭🇰 Hong Kong</option><option>🇰🇷 Seul</option><option>🇲🇾 Kuala Lumpur</option>
+          <option>🇮🇳 Delhi</option><option>🇮🇳 Mumbai</option>
+        </optgroup>
+        <optgroup label="Ameryki">
+          <option>🇺🇸 Nowy Jork</option><option>🇺🇸 Los Angeles</option><option>🇺🇸 Chicago</option>
+          <option>🇨🇦 Toronto</option><option>🇺🇸 Miami</option><option>🇧🇷 São Paulo</option>
+        </optgroup>
+        <optgroup label="Afryka i Oceania">
+          <option>🇰🇪 Nairobi</option><option>🇿🇦 Johannesburg</option><option>🇲🇦 Casablanca</option>
+          <option>🇦🇺 Sydney</option><option>🇦🇺 Melbourne</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="field"><label>Adres</label><input type="text" id="ap-address" placeholder="np. Al Satwa, Dubai"></div>
+    <div class="field"><label>Kategoria</label>
+      <select id="ap-category">
+        <option>Restauracja</option><option>Kawiarnia</option><option>Transport</option>
+        <option>Hotel</option><option>Sklep</option><option>Inne</option>
+      </select>
+    </div>
+    <div class="field"><label>Zniżka dla załóg (opcjonalnie)</label>
+      <input type="text" id="ap-discount" placeholder="np. -15% po okazaniu CrewLink">
+    </div>
+    <div class="field"><label>Link Google Maps (opcjonalnie)</label>
+      <input type="text" id="ap-maps" placeholder="https://maps.google.com/?q=...">
+    </div>
+    <div class="err" id="ap-err"></div>
+    <button class="btn-p" id="ap-btn" onclick="submitPlace()">Dodaj miejsce</button>
+  </div>
+</div>
+
+<!-- ══ ADD REVIEW MODAL ══ -->
+<div class="overlay" id="overlay-add-review">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('add-review')"><i class="ti ti-x"></i></button>
+    <h2>Dodaj recenzję</h2>
+    <p class="sub" id="ar-place-name" style="color:var(--sky2);font-weight:500"></p>
+    <div class="field">
+      <label>Ocena</label>
+      <div id="ar-stars" style="display:flex;gap:8px;font-size:28px;cursor:pointer">
+        <span onclick="setRating(1)" style="color:var(--muted)">★</span>
+        <span onclick="setRating(2)" style="color:var(--muted)">★</span>
+        <span onclick="setRating(3)" style="color:var(--muted)">★</span>
+        <span onclick="setRating(4)" style="color:var(--muted)">★</span>
+        <span onclick="setRating(5)" style="color:var(--muted)">★</span>
+      </div>
+    </div>
+    <div class="field"><label>Recenzja</label>
+      <textarea id="ar-content" placeholder="Co polecasz? Jak szybko? Czy jest zniżka dla załóg?" style="min-height:90px;resize:vertical"></textarea>
+    </div>
+    <div class="err" id="ar-err"></div>
+    <button class="btn-p" id="ar-btn" onclick="submitReview()">Opublikuj recenzję</button>
+  </div>
+</div>
+
+
+<!-- ══ MAP ══ -->
+<div id="p-map" class="page">
+  <div class="map-wrap">
+    <div class="map-header">
+      <input class="map-search" type="text" placeholder="🔍  Szukaj miasta..." id="map-search-input">
+      <button class="btn-o btn-sm" onclick="refreshMap()"><i class="ti ti-refresh" style="font-size:12px;vertical-align:-1px;margin-right:3px"></i>Odśwież</button>
+    </div>
+    <div id="leaflet-map"></div>
+    <div class="city-list" id="map-city-list"></div>
+  </div>
+</div>
+
+<!-- ══ PROFILE ══ -->
+<div id="p-profile" class="page">
+  <div class="prof">
+    <div class="ph">
+      <div class="pav-wrap" onclick="document.getElementById('av-file').click()">
+        <div class="pav" id="profile-av-display"></div>
+        <div class="pav-edit"><i class="ti ti-camera" style="font-size:9px"></i></div>
+        <input type="file" id="av-file" accept="image/*" style="display:none;position:absolute;width:0;height:0;opacity:0" onchange="uploadAvatar(event)">
+      </div>
+      <div style="flex:1">
+        <div class="pn" id="profile-name">–</div>
+        <div class="pm" id="profile-meta">–</div>
+        <div class="vb"><i class="ti ti-shield-check" style="font-size:10px;vertical-align:-1px;margin-right:2px"></i>Zweryfikowana załoga</div>
+      </div>
+      <button class="btn-o btn-sm" onclick="doLogout()">Wyloguj</button>
+    </div>
+
+    <div class="ps">
+      <div class="pst"><div class="pst-n" id="stat-exp">–</div><div class="pst-l">lat w branży</div></div>
+      <div class="pst"><div class="pst-n" id="stat-airline-short">–</div><div class="pst-l">linia</div></div>
+      <div class="pst"><div class="pst-n" id="stat-role-short">–</div><div class="pst-l">rola</div></div>
+    </div>
+
+    <div class="city-select-wrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="ct" style="margin:0">Moje aktualne miasto</div>
+        <span id="current-city-display" style="font-size:12px;color:var(--sky2);font-weight:500"></span>
+      </div>
+      <select id="city-select-dropdown" onchange="setCity(this.value)" style="width:100%;background:var(--navy3);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--txt);font-family:DM Sans,sans-serif;outline:none;cursor:pointer;appearance:none;background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2360A8F5%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-repeat:no-repeat;background-position:right 12px center;padding-right:32px">
+        <option value="">Wybierz miasto...</option>
+        <optgroup label="Europa">
+          <option>Warszawa</option><option>Londyn</option><option>Frankfurt</option>
+          <option>Paryż</option><option>Amsterdam</option><option>Madryt</option>
+          <option>Rzym</option><option>Wiedeń</option><option>Zurych</option>
+        </optgroup>
+        <optgroup label="Bliski Wschód">
+          <option>Dubai</option><option>Doha</option><option>Abu Dhabi</option>
+          <option>Istanbul</option><option>Tel Awiw</option>
+        </optgroup>
+        <optgroup label="Azja">
+          <option>Bangkok</option><option>Tokio</option><option>Singapur</option>
+          <option>Hong Kong</option><option>Seul</option><option>Kuala Lumpur</option>
+          <option>Delhi</option><option>Mumbai</option>
+        </optgroup>
+        <optgroup label="Ameryki">
+          <option>Nowy Jork</option><option>Los Angeles</option><option>Chicago</option>
+          <option>Toronto</option><option>Miami</option><option>São Paulo</option>
+        </optgroup>
+        <optgroup label="Afryka i Oceania">
+          <option>Nairobi</option><option>Johannesburg</option><option>Casablanca</option>
+          <option>Sydney</option><option>Melbourne</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="dc" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="ct" style="margin:0">Ulubione miejsca</div>
+        <button class="btn-o btn-sm" onclick="show('miejsca')">Zobacz wszystkie</button>
+      </div>
+      <div id="profile-likes-list">
+        <div class="empty-state"><i class="ti ti-heart"></i>Brak ulubionych miejsc</div>
+      </div>
+    </div>
+
+    <div class="dc" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="ct" style="margin:0">Log lotów</div>
+        <button class="btn-p btn-sm" style="width:auto" onclick="openModal('add-flight')">
+          <i class="ti ti-plus" style="font-size:11px;vertical-align:-1px;margin-right:3px"></i>Dodaj lot
+        </button>
+      </div>
+      <div id="flights-list">
+        <div class="empty-state"><i class="ti ti-plane"></i>Brak lotów. Dodaj pierwszy!</div>
+      </div>
+    </div>
+
+    <div class="dc">
+      <div class="ct">Edytuj profil</div>
+      <div class="field"><label>Status</label><input type="text" id="edit-status" placeholder="np. ☕ Idę na kawę, ktoś dołączy?"></div>
+      <button class="btn-p" onclick="saveProfile()" style="padding:8px;font-size:12px">Zapisz zmiany</button>
+    </div>
+  </div>
+</div>
+
+<!-- FULL CALENDAR -->
+<div class="cal-overlay" id="cal-overlay" onclick="if(event.target===this)closeCalendar()">
+  <div class="cal-full">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <h2 style="font-family:Syne,sans-serif;font-size:20px;font-weight:700">Kalendarz</h2>
+      <button onclick="closeCalendar()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button class="cal-nav" onclick="calNav(-1)">&#8249;</button>
+      <div id="full-cal-title" style="font-size:15px;font-weight:500;color:var(--txt)"></div>
+      <button class="cal-nav" onclick="calNav(1)">&#8250;</button>
+    </div>
+    <div class="cal-full-grid" id="full-cal-names"></div>
+    <div class="cal-full-grid" id="full-cal-days"></div>
+    <div style="margin-top:14px;border-top:0.5px solid var(--border);padding-top:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="ct" style="margin:0" id="cal-selected-label">Wybierz dzień</div>
+        <button class="btn-p" style="width:auto;padding:5px 12px;font-size:11px" onclick="openModal('add-event')">+ Dodaj</button>
+      </div>
+      <div id="cal-events-list" style="display:flex;flex-direction:column;gap:7px">
+        <div style="font-size:12px;color:var(--muted);text-align:center;padding:10px">Kliknij dzień aby zobaczyć wydarzenia</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADD EVENT -->
+<div class="overlay" id="overlay-add-event">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('add-event')"><i class="ti ti-x"></i></button>
+    <h2>Dodaj wydarzenie</h2>
+    <p class="sub" id="add-event-date-label" style="color:var(--sky2);font-weight:500"></p>
+    <div class="field"><label>Nazwa</label><input type="text" id="ev-name" placeholder="np. Lot WAW-DXB, Spotkanie"></div>
+    <div class="field"><label>Godzina</label><input type="time" id="ev-time"></div>
+    <div class="field"><label>Notatka</label><textarea id="ev-note" placeholder="opcjonalnie..." style="min-height:70px;resize:vertical"></textarea></div>
+    <div class="err" id="ev-err"></div>
+    <button class="btn-p" onclick="saveEvent()">Zapisz</button>
+  </div>
+</div>
+
+<!-- ADD FLIGHT MODAL -->
+<div class="overlay" id="overlay-add-flight">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('add-flight')"><i class="ti ti-x"></i></button>
+    <h2>Dodaj lot</h2>
+    <p class="sub">Wpisz numer lotu aby automatycznie pobrać dane, lub wypełnij ręcznie.</p>
+
+    <div class="field">
+      <label>Szukaj po numerze lotu</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="fl-search-num" placeholder="np. LO89, LH100, EK204" style="flex:1;text-transform:uppercase">
+        <button class="btn-o" id="fl-search-btn" onclick="searchFlight()" style="padding:9px 14px;white-space:nowrap;flex-shrink:0">
+          <i class="ti ti-search" style="font-size:13px;vertical-align:-1px;margin-right:4px"></i>Szukaj
+        </button>
+      </div>
+    </div>
+    <div id="fl-search-result" style="display:none;background:rgba(45,212,160,.08);border:0.5px solid rgba(45,212,160,.25);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--green)"></div>
+    <div id="fl-search-err" style="display:none;background:var(--red2);border:0.5px solid rgba(240,96,96,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--red)"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <div style="flex:1;height:0.5px;background:var(--border)"></div>
+      <span style="font-size:11px;color:var(--muted)">lub wpisz ręcznie</span>
+      <div style="flex:1;height:0.5px;background:var(--border)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field">
+        <label>Z (miasto lub IATA)</label>
+        <input type="text" id="fl-from" placeholder="np. Warszawa / WAW">
+      </div>
+      <div class="field">
+        <label>Do (miasto lub IATA)</label>
+        <input type="text" id="fl-to" placeholder="np. Dubai / DXB">
+      </div>
+    </div>
+    <div class="field">
+      <label>Data i godzina wylotu</label>
+      <input type="datetime-local" id="fl-dep">
+    </div>
+    <div class="field">
+      <label>Data i godzina przylotu</label>
+      <input type="datetime-local" id="fl-arr">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field">
+        <label>Numer lotu (opcjonalnie)</label>
+        <input type="text" id="fl-num" placeholder="np. LO 89">
+      </div>
+      <div class="field">
+        <label>Postój (godziny)</label>
+        <input type="number" id="fl-layover" placeholder="np. 8" min="0" max="96">
+      </div>
+    </div>
+    <div class="field">
+      <label>Notatki (opcjonalnie)</label>
+      <textarea id="fl-notes" placeholder="np. Hotel Mövenpick, pickup 06:00" style="min-height:60px;resize:vertical"></textarea>
+    </div>
+    <div class="err" id="fl-err"></div>
+    <button class="btn-p" id="fl-btn" onclick="submitFlight()">Dodaj lot</button>
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile only) -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="bn-item active" id="bn-dashboard" onclick="show('dashboard')">
+    <i class="ti ti-layout-dashboard"></i>
+    <span>Dashboard</span>
+  </button>
+  <button class="bn-item" id="bn-chat" onclick="show('chat')">
+    <i class="ti ti-message-circle"></i>
+    <span>Czat</span>
+  </button>
+  <button class="bn-item" id="bn-miejsca" onclick="show('miejsca')">
+    <i class="ti ti-star"></i>
+    <span>Miejsca</span>
+  </button>
+  <button class="bn-item" id="bn-map" onclick="show('map')">
+    <i class="ti ti-map"></i>
+    <span>Mapa</span>
+  </button>
+  <button class="bn-item" id="bn-profile" onclick="show('profile')">
+    <i class="ti ti-user"></i>
+    <span>Profil</span>
+  </button>
+</nav>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ──
+const SUPABASE_URL = 'https://grautjaoubswizwhfhgb.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyYXV0amFvdWJzd2l6d2hmaGdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAwMDY3ODYsImV4cCI6MjA5NTU4Mjc4Nn0.0Iv-ATXB1X7P4KRdpd-x_czQ0D1ZM_d9nXWBxHTHLdY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── STATE ──
+let currentUser = null;
+let currentProfile = null;
+let currentRoom = null;
+let mapInited = false;
+let leafMap = null;
+let chatSub = null;
+
+// City coordinates for map
+const cityCoords = {
+  'Dubai': [25.2532, 55.3657], 'Warszawa': [52.1657, 20.9671],
+  'Londyn': [51.5074, -0.1278], 'Frankfurt': [50.0379, 8.5622],
+  'Paryż': [48.8566, 2.3522], 'Amsterdam': [52.3086, 4.7639],
+  'Nowy Jork': [40.6413, -73.7781], 'Bangkok': [13.6900, 100.7501],
+  'Tokio': [35.6762, 139.6503], 'Singapur': [1.3521, 103.8198],
+  'Doha': [25.2731, 51.6080], 'Istanbul': [41.0082, 28.9784],
+  'Madryt': [40.4983, -3.5676], 'Rzym': [41.8003, 12.2389],
+  'Wiedeń': [48.1103, 16.5697], 'Zurych': [47.4502, 8.5619],
+  'Abu Dhabi': [24.4330, 54.6511], 'Tel Awiw': [32.0055, 34.8854],
+  'Hong Kong': [22.3080, 113.9185], 'Seul': [37.4602, 126.4407],
+  'Kuala Lumpur': [2.7456, 101.7072], 'Delhi': [28.5562, 77.1000],
+  'Mumbai': [19.0896, 72.8656], 'Los Angeles': [33.9425, -118.4081],
+  'Chicago': [41.9742, -87.9073], 'Toronto': [43.6777, -79.6248],
+  'Miami': [25.7959, -80.2870], 'São Paulo': [-23.4356, -46.4731],
+  'Nairobi': [-1.3192, 36.9275], 'Johannesburg': [-26.1392, 28.2460],
+  'Casablanca': [33.3675, -7.5898], 'Sydney': [-33.9399, 151.1753],
+  'Melbourne': [-37.6690, 144.8410]
+};
+
+const cityFlags = {
+  'Dubai':'🇦🇪', 'Warszawa':'🇵🇱', 'Londyn':'🇬🇧', 'Frankfurt':'🇩🇪',
+  'Paryż':'🇫🇷', 'Amsterdam':'🇳🇱', 'Nowy Jork':'🇺🇸', 'Bangkok':'🇹🇭',
+  'Tokio':'🇯🇵', 'Singapur':'🇸🇬', 'Doha':'🇶🇦', 'Istanbul':'🇹🇷',
+  'Madryt':'🇪🇸', 'Rzym':'🇮🇹', 'Wiedeń':'🇦🇹', 'Zurych':'🇨🇭',
+  'Abu Dhabi':'🇦🇪', 'Tel Awiw':'🇮🇱', 'Hong Kong':'🇭🇰', 'Seul':'🇰🇷',
+  'Kuala Lumpur':'🇲🇾', 'Delhi':'🇮🇳', 'Mumbai':'🇮🇳', 'Los Angeles':'🇺🇸',
+  'Chicago':'🇺🇸', 'Toronto':'🇨🇦', 'Miami':'🇺🇸', 'São Paulo':'🇧🇷',
+  'Nairobi':'🇰🇪', 'Johannesburg':'🇿🇦', 'Casablanca':'🇲🇦',
+  'Sydney':'🇦🇺', 'Melbourne':'🇦🇺'
+};
+
+// ── INIT ──
+async function init() {
+  // Always hide loading after 3s max
+  const loadTimeout = setTimeout(hideLoading, 3000);
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    clearTimeout(loadTimeout);
+    hideLoading();
+    if (session) {
+      currentUser = session.user;
+      await loadProfile();
+      await showApp();
+    }
+    loadStats().catch(()=>{});
+  } catch(e) {
+    clearTimeout(loadTimeout);
+    hideLoading();
+    console.error('Init error:', e);
+  }
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      await loadProfile();
+      showApp();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null; currentProfile = null;
+      hideApp();
+    }
+  });
+}
+
+function hideLoading() {
+  document.getElementById('loading-screen').style.display = 'none';
+}
+
+async function showApp() {
+  document.getElementById('p-landing').classList.remove('active');
+  document.getElementById('main-nav').classList.add('visible');
+  document.getElementById('bottom-nav').classList.add('visible');
+  // If profile missing, create empty one
+  if (!currentProfile) {
+    const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    if (!data) {
+      await sb.from('profiles').upsert({
+        id: currentUser.id,
+        full_name: currentUser.user_metadata?.full_name || currentUser.email.split('@')[0],
+        airline: currentUser.user_metadata?.airline || '',
+        role: currentUser.user_metadata?.role || '',
+        years_experience: currentUser.user_metadata?.years_experience || 0,
+        current_city: currentUser.user_metadata?.current_city || '',
+        status: ''
+      });
+      await loadProfile();
+    }
+  }
+  show('dashboard');
+  loadDashboard();
+  loadChatRooms();
+  // Init calendar after short delay so dashboard renders first
+  setTimeout(function() {
+    try { loadCalEvents(); renderMiniCal(); } catch(e) { console.error('Cal error:', e); }
+  }, 200);
+}
+
+function hideApp() {
+  document.getElementById('main-nav').classList.remove('visible');
+  document.getElementById('bottom-nav').classList.remove('visible');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('p-landing').classList.add('active');
+}
+
+// ── AUTH ──
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const btn = document.getElementById('login-btn');
+  const err = document.getElementById('login-err');
+  err.classList.remove('show');
+  if (!email || !pass) { showErr(err, 'Wpisz email i hasło.'); return; }
+  btn.disabled = true; btn.textContent = 'Logowanie...';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Zaloguj się';
+  if (error) { showErr(err, 'Nieprawidłowy email lub hasło.'); return; }
+  closeModal('login');
+  showToast('Zalogowano! Witaj z powrotem ✈');
+}
+
+function regStep1() {
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const err = document.getElementById('reg-err1');
+  err.classList.remove('show');
+  if (!name) { showErr(err, 'Wpisz imię i nazwisko.'); return; }
+  if (!email) { showErr(err, 'Wpisz email.'); return; }
+  if (pass.length < 8) { showErr(err, 'Hasło musi mieć min. 8 znaków.'); return; }
+  document.getElementById('reg-s1').style.display = 'none';
+  document.getElementById('reg-s2').style.display = 'block';
+  document.getElementById('rs1').className = 'step done';
+  document.getElementById('rs2').className = 'step active';
+}
+
+function regBack() {
+  document.getElementById('reg-s2').style.display = 'none';
+  document.getElementById('reg-s1').style.display = 'block';
+  document.getElementById('rs1').className = 'step active';
+  document.getElementById('rs2').className = 'step';
+}
+
+async function doRegister() {
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const airline = document.getElementById('reg-airline').value;
+  const role = document.getElementById('reg-role').value;
+  const exp = parseInt(document.getElementById('reg-exp').value) || 0;
+  const city = document.getElementById('reg-city').value;
+  const err = document.getElementById('reg-err2');
+  const btn = document.getElementById('reg-btn');
+  err.classList.remove('show');
+  if (!airline) { showErr(err, 'Wybierz linię lotniczą.'); return; }
+  if (!city) { showErr(err, 'Wybierz aktualne miasto.'); return; }
+  btn.disabled = true; btn.textContent = 'Rejestracja...';
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: {
+      data: {
+        full_name: name,
+        airline: airline,
+        role: role,
+        years_experience: exp,
+        current_city: city
+      }
+    }
+  });
+  if (error) { showErr(err, error.message); btn.disabled = false; btn.textContent = 'Zarejestruj się'; return; }
+  // Also try direct insert as fallback
+  if (data.user) {
+    await sb.from('profiles').upsert({
+      id: data.user.id,
+      full_name: name,
+      airline: airline,
+      role: role,
+      years_experience: exp,
+      current_city: city,
+      status: ''
+    });
+  }
+  btn.disabled = false; btn.textContent = 'Zarejestruj się';
+  closeModal('register');
+  showToast('Konto utworzone! Witaj w CrewLink ✈');
+}
+
+async function doLogout() {
+  try {
+    await sb.auth.signOut();
+  } catch(e) {}
+  currentUser = null;
+  currentProfile = null;
+  currentRoom = null;
+  if (chatSub) { try { sb.removeChannel(chatSub); } catch(e){} chatSub = null; }
+  document.getElementById('main-nav').classList.remove('visible');
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('p-landing').classList.add('active');
+  showToast('Wylogowano pomyślnie.');
+}
+
+// ── PROFILE ──
+async function loadProfile() {
+  if (!currentUser) return;
+  const { data } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  if (data) {
+    currentProfile = data;
+    updateProfileUI();
+  }
+}
+
+function updateProfileUI() {
+  if (!currentProfile) return;
+  const p = currentProfile;
+  // Nav
+  const navAv = document.getElementById('nav-av');
+  navAv.innerHTML = p.full_name ? p.full_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '?';
+  document.getElementById('nav-city-text').textContent = p.current_city || '–';
+  // Profile page
+  document.getElementById('profile-name').textContent = p.full_name || '–';
+  document.getElementById('profile-meta').textContent = (p.airline || '–') + ' · ' + (p.role || '–') + ' · ' + (p.current_city || '–');
+  document.getElementById('stat-exp').textContent = p.years_experience || '–';
+  document.getElementById('stat-airline-short').textContent = (p.airline || '–').split(' ')[0];
+  document.getElementById('stat-role-short').textContent = p.role === 'Stewardessa / Steward' ? 'Steward' : (p.role || '–').split(' ')[0];
+  document.getElementById('profile-av-display').textContent = p.full_name ? p.full_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : '?';
+  document.getElementById('edit-status').value = p.status || '';
+  document.getElementById('dash-city').textContent = p.current_city || 'Brak';
+  document.getElementById('dash-status').textContent = p.status || 'Brak statusu';
+  document.getElementById('crew-city-label').textContent = p.current_city || 'Twoim mieście';
+  // Update city dropdown
+  const cityDropdown = document.getElementById('city-select-dropdown');
+  if (cityDropdown && p.current_city) cityDropdown.value = p.current_city;
+  const cityDisplay = document.getElementById('current-city-display');
+  if (cityDisplay) cityDisplay.textContent = p.current_city || '';
+}
+
+async function setCity(city) {
+  if (!currentUser) { showToast('Nie jesteś zalogowany.'); return; }
+  // Strip emoji flag prefix if present e.g. flag + space
+  city = city.replace(/^\S+\s/, function(m){ return /\p{Emoji}/u.test(m) ? '' : m; }).trim();
+  // Simple fallback: remove first word if it looks like emoji (<=4 chars)
+  var parts = city.split(' ');
+  if (parts.length > 1 && parts[0].length <= 4) city = parts.slice(1).join(' ');
+  if (!city) return;
+  // If no profile exists yet, create it
+  if (!currentProfile) {
+    await sb.from('profiles').upsert({
+      id: currentUser.id,
+      current_city: city,
+      full_name: currentUser.email.split('@')[0],
+      airline: '', role: '', years_experience: 0, status: ''
+    });
+    await loadProfile();
+  } else {
+    const { error } = await sb.from('profiles').update({ current_city: city }).eq('id', currentUser.id);
+    if (error) { showToast('Błąd: ' + error.message); return; }
+    currentProfile.current_city = city;
+  }
+  updateProfileUI();
+  loadDashboard();
+  showToast('Miasto zaktualizowane: ' + city);
+}
+
+async function setStatus(status) {
+  if (!currentUser) return;
+  await sb.from('profiles').update({ status }).eq('id', currentUser.id);
+  if (currentProfile) currentProfile.status = status;
+  document.getElementById('dash-status').textContent = status || 'Brak statusu';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('sel'));
+  if (status) {
+    const chips = document.querySelectorAll('#status-chips .chip');
+    chips.forEach(c => { if (c.textContent === status) c.classList.add('sel'); });
+  }
+  showToast(status ? 'Status ustawiony: ' + status : 'Status wyczyszczony');
+}
+
+async function saveProfile() {
+  if (!currentUser) { showToast('Nie jesteś zalogowany.'); return; }
+  const status = document.getElementById('edit-status').value.trim();
+  if (!currentProfile) {
+    await sb.from('profiles').upsert({
+      id: currentUser.id, status,
+      full_name: currentUser.email.split('@')[0],
+      airline: '', role: '', years_experience: 0, current_city: ''
+    });
+    await loadProfile();
+  } else {
+    const { error } = await sb.from('profiles').update({ status }).eq('id', currentUser.id);
+    if (error) { showToast('Błąd zapisu: ' + error.message); return; }
+    currentProfile.status = status;
+  }
+  document.getElementById('dash-status').textContent = status || 'Brak statusu';
+  showToast('Profil zapisany!');
+}
+
+async function uploadAvatar(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const src = ev.target.result;
+    document.getElementById('profile-av-display').innerHTML = '<img src="' + src + '">';
+    document.getElementById('nav-av').innerHTML = '<img src="' + src + '">';
+  };
+  reader.readAsDataURL(file);
+  showToast('Zdjęcie zaktualizowane!');
+}
+
+// ── DASHBOARD ──
+async function loadDashboard() {
+  if (!currentProfile) return;
+  const city = currentProfile.current_city;
+  if (!city) return;
+
+  // ── Crew in same city ──
+  const { data: crew } = await sb.from('profiles')
+    .select('*').eq('current_city', city).neq('id', currentUser.id);
+  const list = document.getElementById('crew-list');
+  document.getElementById('crew-count-label').textContent = crew ? crew.length + ' osób' : '';
+  const colors = ['rgba(59,139,235,.15):#60A8F5','rgba(45,212,160,.13):#2DD4A0','rgba(232,184,75,.13):#E8B84B','rgba(240,96,96,.13):#F06060'];
+  list.innerHTML = '';
+  if (!crew || crew.length === 0) {
+    list.innerHTML = '<div class="empty-state"><i class="ti ti-users"></i>Brak innych załóg w ' + city + ' w tej chwili.</div>';
+  } else {
+    crew.forEach(function(p, i) {
+      const parts = colors[i % colors.length].split(':');
+      const bg = parts[0];
+      const col = parts[1];
+      const initials = (p.full_name || '?').split(' ').map(function(w){ return w[0]; }).join('').slice(0,2).toUpperCase();
+      const div = document.createElement('div');
+      div.className = 'ci';
+      div.addEventListener('click', function(){ openDMWithUser(p.id, p.full_name||'?'); });
+      div.innerHTML = '<div class="cav" style="background:' + bg + ';color:' + col + '">' + initials + '</div>'
+        + '<div style="flex:1"><div class="cn">' + escHtml(p.full_name||'?') + '</div>'
+        + '<div class="cr">' + escHtml(p.airline||'–') + ' · ' + escHtml(p.role||'–') + ' · ' + (p.years_experience||0) + ' lat</div></div>'
+        + (p.status ? '<span class="cs sc">' + escHtml(p.status) + '</span>' : '<span class="cs sf">Online</span>');
+      list.appendChild(div);
+    });
+  }
+
+  // ── Active cities ──
+  const citiesEl = document.getElementById('active-cities-list');
+  const { data: allProfiles } = await sb.from('profiles').select('current_city');
+  if (!allProfiles || allProfiles.length === 0) {
+    citiesEl.innerHTML = '<div class="empty-state"><i class="ti ti-map-pin"></i>Brak danych</div>';
+    return;
+  }
+  const cityCounts = {};
+  allProfiles.forEach(function(p) {
+    if (p.current_city) cityCounts[p.current_city] = (cityCounts[p.current_city]||0) + 1;
+  });
+  const sorted = Object.entries(cityCounts).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
+  citiesEl.innerHTML = '';
+  sorted.forEach(function(entry) {
+    const cityName = entry[0];
+    const count = entry[1];
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:8px;border:0.5px solid var(--border);cursor:pointer;transition:all .13s;margin-bottom:5px';
+    div.addEventListener('click', function(){ show('map'); });
+    div.addEventListener('mouseover', function(){ this.style.borderColor='var(--sky2)'; });
+    div.addEventListener('mouseout', function(){ this.style.borderColor='var(--border)'; });
+    const flag = cityFlags[cityName] || '🌍';
+    div.innerHTML = '<span style="font-size:12px;color:var(--txt)">' + flag + ' ' + cityName + '</span>'
+      + '<span style="font-size:11px;color:var(--sky2);font-weight:500">' + count + ' załóg</span>';
+    citiesEl.appendChild(div);
+  });
+}
+
+// ── STATS ──
+async function loadStats() {
+  const { count: users } = await sb.from('profiles').select('*', { count: 'exact', head: true });
+  const { count: msgs } = await sb.from('messages').select('*', { count: 'exact', head: true });
+  const { data: cityData } = await sb.from('profiles').select('current_city');
+  const cities = new Set((cityData||[]).map(p=>p.current_city).filter(Boolean));
+  document.getElementById('stat-users').textContent = users || 0;
+  document.getElementById('stat-cities').textContent = cities.size || 0;
+  document.getElementById('stat-msgs').textContent = msgs || 0;
+}
+
+// ── CHAT ──
+async function loadChatRooms() {
+  const { data: profiles } = await sb.from('profiles').select('current_city');
+  const cities = [...new Set((profiles||[]).map(p=>p.current_city).filter(Boolean))].sort();
+  const flags = { Dubai:'🇦🇪', Warszawa:'🇵🇱', Londyn:'🇬🇧', Frankfurt:'🇩🇪', Paryż:'🇫🇷',
+    Amsterdam:'🇳🇱', 'Nowy Jork':'🇺🇸', Bangkok:'🇹🇭', Tokio:'🇯🇵', Singapur:'🇸🇬', Doha:'🇶🇦', Istanbul:'🇹🇷' };
+  const container = document.getElementById('chat-rooms-list');
+  if (cities.length === 0) {
+    container.innerHTML = '<div style="padding:14px;font-size:11px;color:var(--muted)">Brak aktywnych miast</div>';
+    return;
+  }
+  container.innerHTML = cities.map(city =>
+    '<div class="room" id="room-' + city.replace(/ /g,'_') + '" onclick="joinRoom(\'' + city + '\')">'
+    + '<div class="room-icon">' + (flags[city]||'🌍') + '</div>'
+    + '<div style="flex:1;min-width:0"><div class="room-name">' + city + '</div>'
+    + '<div class="room-last" id="last-' + city.replace(/ /g,'_') + '">Dołącz do czatu</div></div>'
+    + '</div>'
+  ).join('');
+  // Auto-join user's city
+  if (currentProfile && currentProfile.current_city && cities.includes(currentProfile.current_city)) {
+    joinRoom(currentProfile.current_city);
+  }
+}
+
+async function joinRoom(city) {
+  currentRoom = city;
+  document.querySelectorAll('.room').forEach(r => r.classList.remove('active'));
+  const roomEl = document.getElementById('room-' + city.replace(/ /g,'_'));
+  if (roomEl) roomEl.classList.add('active');
+  document.getElementById('chat-title').textContent = city + ' · General';
+  document.getElementById('chat-sub').textContent = 'Czat lokalny · ' + city;
+  document.getElementById('chat-input').disabled = false;
+  document.getElementById('chat-send-btn').disabled = false;
+  document.getElementById('chat-input').placeholder = 'Napisz do załóg w ' + city + '...';
+  // Unsubscribe old
+  if (chatSub) { sb.removeChannel(chatSub); chatSub = null; }
+  // Load messages
+  await loadMessages(city);
+  // Subscribe to new messages
+  chatSub = sb.channel('room-' + city + '-' + Date.now())
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'messages',
+      filter: 'city=eq.' + city
+    }, payload => {
+      // Only append if not already shown (avoid duplicates from loadMessages)
+      const msgs = document.getElementById('chat-messages');
+      const existing = msgs.querySelector('[data-msg-id="' + payload.new.id + '"]');
+      if (!existing) appendMessage(payload.new);
+    })
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        document.getElementById('chat-sub').textContent = 'Live · ' + city;
+      }
+    });
+}
+
+async function loadMessages(city) {
+  const { data } = await sb.from('messages')
+    .select('*').eq('city', city).order('created_at', { ascending: true }).limit(50);
+  const container = document.getElementById('chat-messages');
+  if (!data || data.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="margin:auto"><i class="ti ti-message-circle"></i>Brak wiadomości. Napisz pierwszy!</div>';
+    return;
+  }
+  container.innerHTML = '';
+  data.forEach(msg => appendMessage(msg));
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendMessage(msg) {
+  const container = document.getElementById('chat-messages');
+  const isMe = currentUser && msg.user_id === currentUser.id;
+  const initials = (msg.user_name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  const time = new Date(msg.created_at).toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' });
+  // Remove empty state
+  const empty = container.querySelector('.empty-state');
+  if (empty) empty.parentNode && empty.parentNode.removeChild(empty);
+  const div = document.createElement('div');
+  div.className = 'msg' + (isMe ? ' mine' : '');
+  if (msg.id) div.setAttribute('data-msg-id', msg.id);
+  div.innerHTML = '<div class="msg-av" style="background:rgba(59,139,235,.15);color:var(--sky2)">' + initials + '</div>'
+    + '<div>' + (!isMe ? '<div class="msg-name">' + (msg.user_name||'?') + ' · ' + (msg.user_airline||'–') + '</div>' : '')
+    + '<div class="msg-bubble">' + escHtml(msg.content) + '</div>'
+    + '<div class="msg-time">' + time + '</div></div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  // Update last message in sidebar
+  const lastEl = document.getElementById('last-' + (msg.city||'').replace(/ /g,'_'));
+  if (lastEl) lastEl.textContent = (msg.user_name||'?') + ': ' + msg.content.slice(0,25);
+}
+
+async function sendMessage() {
+  if (!currentUser || !currentRoom || !currentProfile) return;
+  const input = document.getElementById('chat-input');
+  const content = input.value.trim(); if (!content) return;
+  input.value = '';
+  const { error } = await sb.from('messages').insert({
+    city: currentRoom,
+    user_id: currentUser.id,
+    user_name: currentProfile.full_name,
+    user_airline: currentProfile.airline,
+    content: content
+  });
+  if (error) { showToast('Błąd wysyłania: ' + error.message); return; }
+  // Reload messages after send as fallback if realtime doesnt fire
+  await loadMessages(currentRoom);
+}
+
+function openDMWithUser(userId, name) {
+  show('chat');
+  showToast('DM z ' + name + ' – funkcja dostępna wkrótce');
+}
+
+// ── MAP ──
+function initMap() {
+  if (mapInited) return;
+  mapInited = true;
+  leafMap = L.map('leaflet-map', { center:[20,15], zoom:2, zoomControl:true, attributionControl:true, minZoom:2, maxZoom:10, worldCopyJump:true });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:'© <a href="https://carto.com/">CARTO</a>', subdomains:'abcd', maxZoom:19
+  }).addTo(leafMap);
+  leafMap.attributionControl.setPrefix('');
+  refreshMap();
+}
+
+async function refreshMap() {
+  if (!leafMap) return;
+  const { data } = await sb.from('profiles').select('current_city, full_name, airline, status');
+  if (!data) return;
+  // Count per city
+  const cities = {};
+  data.forEach(p => {
+    if (!p.current_city) return;
+    if (!cities[p.current_city]) cities[p.current_city] = { count:0, names:[] };
+    cities[p.current_city].count++;
+    cities[p.current_city].names.push((p.full_name||'?') + ' · ' + (p.airline||'–'));
+  });
+  // Clear old markers
+  leafMap.eachLayer(l => { if (l instanceof L.Marker) leafMap.removeLayer(l); });
+  // Add markers
+  Object.entries(cities).forEach(([city, info]) => {
+    const coords = cityCoords[city]; if (!coords) return;
+    const col = info.count >= 5 ? '#E8B84B' : info.count >= 3 ? '#2DD4A0' : '#60A8F5';
+    const r = Math.min(14 + info.count * 2, 26);
+    const d = r * 2 + 14;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + d + '" height="' + d + '" viewBox="0 0 ' + d + ' ' + d + '">'
+      + '<circle cx="' + d/2 + '" cy="' + d/2 + '" r="' + (r+5) + '" fill="' + col + '" fill-opacity=".12"/>'
+      + '<circle cx="' + d/2 + '" cy="' + d/2 + '" r="' + r + '" fill="' + col + '" fill-opacity=".25" stroke="' + col + '" stroke-width="1.2"/>'
+      + '<circle cx="' + d/2 + '" cy="' + d/2 + '" r="' + r*.4 + '" fill="' + col + '"/>'
+      + '<text x="' + d/2 + '" y="' + (d-2) + '" text-anchor="middle" fill="' + col + '" font-size="9" font-family="DM Sans,sans-serif">' + info.count + '</text>'
+      + '</svg>';
+    const icon = L.divIcon({ html:svg, className:'', iconSize:[d,d], iconAnchor:[d/2,d/2] });
+    const marker = L.marker(coords, { icon }).addTo(leafMap);
+    marker.bindPopup(
+      '<div class="crew-popup"><div class="cpp-city">' + city + '</div>'
+      + '<div class="cpp-count">' + info.count + ' załóg aktywnych</div>'
+      + '<div class="cpp-status">● Online teraz</div></div>',
+      { closeButton:false, offset:[0,-4] }
+    );
+  });
+  // Update city list below map
+  const sorted = Object.entries(cities).sort((a,b)=>b[1].count-a[1].count);
+  document.getElementById('map-city-list').innerHTML = sorted.map(([city, info]) =>
+    '<div class="cc" onclick="flyToCity(\'' + city + '\')">'
+    + '<div class="cc-name">' + city + '</div>'
+    + '<div class="cc-count"><span>' + info.count + ' załóg</span></div></div>'
+  ).join('') || '<div style="grid-column:1/-1;text-align:center;font-size:12px;color:var(--muted);padding:10px">Brak aktywnych miast</div>';
+
+  // Legend
+  if (!document.querySelector('.map-legend')) {
+    const legend = L.control({ position:'bottomleft' });
+    legend.onAdd = function() {
+      const d = L.DomUtil.create('div','map-legend');
+      d.style.cssText = 'background:#132240;border:0.5px solid rgba(59,139,235,.3);border-radius:8px;padding:9px 12px;font-family:DM Sans,sans-serif;font-size:11px;color:#8BA3C0;line-height:1.9';
+      d.innerHTML = '<div style="font-size:9px;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">Liczba załóg</div>'
+        + '<div><span style="color:#60A8F5">●</span> 1–2</div>'
+        + '<div><span style="color:#2DD4A0">●</span> 3–4</div>'
+        + '<div><span style="color:#E8B84B">●</span> 5+</div>';
+      return d;
+    };
+    legend.addTo(leafMap);
+  }
+}
+
+function flyToCity(city) {
+  const coords = cityCoords[city]; if (!coords || !leafMap) return;
+  leafMap.flyTo(coords, 5, { duration:1.3 });
+}
+
+
+// ══════════════════════════════════════
+// MIEJSCA & CREW-TIPS
+// ══════════════════════════════════════
+
+let currentPlaceId = null;
+let currentPlaceName = null;
+let currentRating = 0;
+let activeCatFilter = '';
+let userLikes = new Set();
+
+const catIcons = {
+  'Restauracja':'🍽️','Kawiarnia':'☕','Transport':'🚇',
+  'Hotel':'🏨','Sklep':'🛒','Inne':'📍'
+};
+
+async function loadPlaces() {
+  const city = document.getElementById('places-city-filter').value;
+  const container = document.getElementById('places-list');
+  container.innerHTML = '<div class="empty-state"><i class="ti ti-loader"></i>Ładowanie...</div>';
+
+  // Strip emoji from city filter value
+  let cleanCity = city ? city.replace(/^[^a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]+/, '').trim() : '';
+  let query = sb.from('places').select('*').order('is_promoted', { ascending:false }).order('avg_rating', { ascending:false });
+  if (cleanCity) query = query.eq('city', cleanCity);
+  if (activeCatFilter) query = query.eq('category', activeCatFilter);
+
+  const { data, error } = await query;
+  if (error || !data || data.length === 0) {
+    container.innerHTML = '<div class="empty-state"><i class="ti ti-star"></i>Brak miejsc' + (city ? ' w ' + city : '') + '. Dodaj pierwsze!</div>';
+    return;
+  }
+
+  // Load user likes
+  if (currentUser) {
+    const { data: likes } = await sb.from('likes').select('place_id').eq('user_id', currentUser.id);
+    userLikes = new Set((likes||[]).map(l => l.place_id));
+  }
+
+  container.innerHTML = '';
+  // Promoted first, then rest
+  data.forEach(p => {
+    const card = renderPlaceCard(p);
+    container.appendChild(card);
+  });
+}
+
+
+
+function renderStars(rating) {
+  if (!rating) return '☆☆☆☆☆';
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.5 ? 1 : 0;
+  const empty = 5 - full - half;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(empty);
+}
+
+async function openPlaceDetail(placeId) {
+  currentPlaceId = placeId;
+  const { data: p } = await sb.from('places').select('*').eq('id', placeId).single();
+  if (!p) return;
+  currentPlaceName = p.name;
+
+  document.getElementById('pd-icon').textContent = catIcons[p.category] || '🍽️';
+  document.getElementById('pd-name').textContent = p.name;
+  document.getElementById('pd-city').innerHTML = '<i class="ti ti-map-pin" style="font-size:10px;margin-right:3px;vertical-align:-1px"></i>' + p.city + (p.address ? ' · ' + p.address : '');
+  document.getElementById('pd-category').textContent = p.category || '';
+
+  const disc = document.getElementById('pd-discount');
+  if (p.discount) { disc.textContent = p.discount; disc.style.display = 'inline-block'; }
+  else { disc.style.display = 'none'; }
+
+  const mapsBtn = document.getElementById('pd-maps-btn');
+  const mapsUrl = p.maps_url || ('https://maps.google.com/?q=' + encodeURIComponent(p.name + ' ' + p.city));
+  mapsBtn.onclick = function() { window.open(mapsUrl, '_blank'); };
+
+  document.getElementById('pd-like-btn').textContent = userLikes.has(placeId) ? '❤️' : '🤍';
+
+  // CrewLink reviews
+  const { data: reviews } = await sb.from('reviews').select('*').eq('place_id', placeId).order('created_at', { ascending:false }).limit(5);
+  const revContainer = document.getElementById('pd-reviews');
+  const colors = ['rgba(59,139,235,.15):#60A8F5','rgba(45,212,160,.13):#2DD4A0','rgba(232,184,75,.13):#E8B84B'];
+
+  // Crew rating summary
+  document.getElementById('pd-c-score').textContent = p.avg_rating ? parseFloat(p.avg_rating).toFixed(1) : '–';
+  document.getElementById('pd-c-stars').textContent = p.avg_rating ? renderStars(p.avg_rating) : '☆☆☆☆☆';
+  document.getElementById('pd-c-count').textContent = (p.review_count||0) + ' recenzji załóg';
+
+  if (!reviews || reviews.length === 0) {
+    revContainer.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0"><i class="ti ti-message-circle" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>Brak recenzji.<br>Bądź pierwszy!</div>';
+  } else {
+    revContainer.innerHTML = '';
+    reviews.forEach(function(r, i) {
+      const parts = colors[i%colors.length].split(':');
+      const bg = parts[0]; const col = parts[1];
+      const initials = (r.user_name||'?').split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;gap:9px;padding:10px;background:rgba(255,255,255,.03);border-radius:9px;border:0.5px solid var(--border)';
+      div.innerHTML = '<div style="width:28px;height:28px;border-radius:50%;background:' + bg + ';color:' + col + ';display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0">' + initials + '</div>'
+        + '<div><div style="font-size:11px;font-weight:500;color:var(--txt)">' + escHtml(r.user_name||'?') + ' · ' + escHtml(r.user_airline||'–') + '</div>'
+        + '<div style="color:var(--gold);font-size:11px;margin:2px 0">' + '★'.repeat(r.rating||0) + '☆'.repeat(5-(r.rating||0)) + '</div>'
+        + '<div style="font-size:12px;color:var(--muted);line-height:1.5">' + escHtml(r.content||'') + '</div></div>';
+      revContainer.appendChild(div);
+    });
+  }
+
+  // Google reviews
+  loadGoogleReviews(p.google_place_id, p.name, p.city);
+  openModal('place-detail');
+}
+
+function loadGoogleReviews(googlePlaceId, name, city) {
+  var gRevContainer = document.getElementById('pd-google-reviews');
+  var gScore = document.getElementById('pd-g-score');
+  var gStars = document.getElementById('pd-g-stars');
+  var gCount = document.getElementById('pd-g-count');
+
+  if (!googlePlaceId || typeof google === 'undefined' || !google.maps || !google.maps.places) {
+    gScore.textContent = '–';
+    gStars.textContent = '';
+    gCount.textContent = '';
+    gRevContainer.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0"><i class="ti ti-brand-google" style="font-size:24px;display:block;margin-bottom:8px;opacity:.3"></i>Brak danych Google<br>dla tego miejsca</div>';
+    return;
+  }
+
+  if (!placesService) placesService = new google.maps.places.PlacesService(document.createElement('div'));
+
+  gRevContainer.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0">Ładowanie...</div>';
+
+  placesService.getDetails({
+    placeId: googlePlaceId,
+    fields: ['rating', 'user_ratings_total', 'reviews']
+  }, function(place, status) {
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !place) {
+      gRevContainer.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0">Nie udało się pobrać opinii Google.</div>';
+      return;
+    }
+    gScore.textContent = place.rating ? place.rating.toFixed(1) : '–';
+    gStars.textContent = place.rating ? renderStars(place.rating) : '';
+    gCount.textContent = place.user_ratings_total ? place.user_ratings_total + ' opinii Google' : '';
+
+    var reviews = place.reviews || [];
+    if (reviews.length === 0) {
+      gRevContainer.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0">Brak opinii Google.</div>';
+      return;
+    }
+    gRevContainer.innerHTML = '';
+    reviews.slice(0,3).forEach(function(r) {
+      var div = document.createElement('div');
+      div.style.cssText = 'padding:10px;background:rgba(255,255,255,.03);border-radius:9px;border:0.5px solid var(--border);margin-bottom:8px';
+      var stars = '';
+      for (var i = 0; i < 5; i++) stars += i < r.rating ? '★' : '☆';
+      div.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">'
+        + '<img src="' + (r.profile_photo_url||'') + '" style="width:24px;height:24px;border-radius:50%;flex-shrink:0">'
+        + '<div><div style="font-size:11px;font-weight:500;color:var(--txt)">' + escHtml(r.author_name||'') + '</div>'
+        + '<div style="color:#FBBC04;font-size:10px">' + stars + '</div></div></div>'
+        + '<div style="font-size:12px;color:var(--muted);line-height:1.5">' + escHtml((r.text||'').slice(0,150)) + (r.text && r.text.length > 150 ? '...' : '') + '</div>';
+      gRevContainer.appendChild(div);
+    });
+  });
+}
+
+async function quickLike(placeId, btn) {
+  if (!currentUser) { showToast('Zaloguj się aby dodać do ulubionych.'); return; }
+  if (userLikes.has(placeId)) {
+    await sb.from('likes').delete().eq('user_id', currentUser.id).eq('place_id', placeId);
+    userLikes.delete(placeId);
+    btn.textContent = '🤍';
+    showToast('Usunięto z ulubionych.');
+  } else {
+    await sb.from('likes').insert({ user_id: currentUser.id, place_id: placeId });
+    userLikes.add(placeId);
+    btn.textContent = '❤️';
+    showToast('Dodano do ulubionych!');
+  }
+  loadProfileLikes();
+}
+
+async function toggleLike() {
+  if (!currentUser || !currentPlaceId) return;
+  await quickLike(currentPlaceId, document.getElementById('pd-like-btn'));
+}
+
+async function loadProfileLikes() {
+  if (!currentUser) return;
+  const { data: likes } = await sb.from('likes').select('place_id, places(id, name, city, category, avg_rating)').eq('user_id', currentUser.id);
+  const container = document.getElementById('profile-likes-list');
+  if (!likes || likes.length === 0) {
+    container.innerHTML = '<div class="empty-state"><i class="ti ti-heart"></i>Brak ulubionych miejsc</div>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  likes.forEach(l => {
+    const p = l.places;
+    if (!p) return '';
+    const icon = catIcons[p.category] || '📍';
+    const likeDiv = document.createElement('div');
+    likeDiv.style.cssText = 'display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;border:0.5px solid var(--border);cursor:pointer;margin-bottom:6px';
+    likeDiv.addEventListener('click', function(){ show('miejsca'); openPlaceDetail(p.id); });
+    likeDiv.addEventListener('mouseover', function(){ this.style.borderColor='var(--sky2)'; });
+    likeDiv.addEventListener('mouseout', function(){ this.style.borderColor='var(--border)'; });
+    likeDiv.innerHTML = '<span style="font-size:18px">' + icon + '</span>'
+      + '<div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--txt)">' + escHtml(p.name) + '</div>'
+      + '<div style="font-size:10px;color:var(--muted)">' + escHtml(p.city) + '</div></div>'
+      + '<span style="color:var(--gold);font-size:11px">' + (p.avg_rating ? parseFloat(p.avg_rating).toFixed(1) + ' ★' : '–') + '</span>';
+    return likeDiv;
+  }).join('');
+}
+
+async function checkDuplicate() {
+  const name = document.getElementById('ap-name').value.trim();
+  const city = document.getElementById('ap-city').value;
+  const warn = document.getElementById('ap-duplicate-warn');
+  if (!name || !city) { warn.style.display = 'none'; return; }
+  const { data } = await sb.from('places').select('id').eq('city', city).ilike('name', name);
+  warn.style.display = (data && data.length > 0) ? 'block' : 'none';
+}
+
+async function submitPlace() {
+  if (!currentUser || !currentProfile) { showToast('Zaloguj się aby dodać miejsce.'); return; }
+  const name = document.getElementById('ap-name').value.trim();
+  const city = document.getElementById('ap-city').value;
+  const address = document.getElementById('ap-address').value.trim();
+  const category = document.getElementById('ap-category').value;
+  const discount = document.getElementById('ap-discount').value.trim();
+  const maps_url = document.getElementById('ap-maps').value.trim();
+  const err = document.getElementById('ap-err');
+  const btn = document.getElementById('ap-btn');
+  err.classList.remove('show');
+  if (!name) { showErr(err, 'Wpisz nazwę miejsca.'); return; }
+  if (!city) { showErr(err, 'Wybierz miasto.'); return; }
+  // Strip emoji from city name before saving
+  const cleanCity = city.replace(/^[^\w\sąćęłńóśźżĄĆĘŁŃÓŚŹŻ]+\s*/, '').trim();
+  // Check duplicate
+  const { data: existing } = await sb.from('places').select('id').eq('city', cleanCity).ilike('name', name);
+  if (existing && existing.length > 0) { showErr(err, 'To miejsce już istnieje w tej lokalizacji.'); return; }
+  btn.disabled = true; btn.textContent = 'Dodawanie...';
+  const placeId = selectedPlaceData ? selectedPlaceData.place_id : null;
+  const { error } = await sb.from('places').insert({
+    name, city: cleanCity, address, category, discount, maps_url,
+    added_by: currentUser.id,
+    added_by_name: currentProfile.full_name,
+    google_place_id: placeId
+  });
+  if (error) { btn.disabled = false; btn.textContent = 'Dodaj miejsce'; showErr(err, 'Błąd zapisu: ' + error.message); console.error('Place insert error:', error); return; }
+  btn.disabled = false; btn.textContent = 'Dodaj miejsce';
+  closeModal('add-place');
+  // Reset form
+  ['ap-name','ap-address','ap-discount','ap-maps'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ap-city').value = '';
+  showToast('Miejsce dodane! Dziękujemy ✈');
+  loadPlaces();
+}
+
+function openAddReview() {
+  closeModal('place-detail');
+  document.getElementById('ar-place-name').textContent = currentPlaceName || '';
+  currentRating = 0;
+  setRating(0);
+  document.getElementById('ar-content').value = '';
+  openModal('add-review');
+}
+
+function setRating(n) {
+  currentRating = n;
+  const stars = document.getElementById('ar-stars').children;
+  for (let i = 0; i < stars.length; i++) {
+    stars[i].style.color = i < n ? 'var(--gold)' : 'var(--muted)';
+  }
+}
+
+async function submitReview() {
+  if (!currentUser || !currentProfile) { showToast('Zaloguj się aby dodać recenzję.'); return; }
+  if (!currentPlaceId) return;
+  const content = document.getElementById('ar-content').value.trim();
+  const err = document.getElementById('ar-err');
+  const btn = document.getElementById('ar-btn');
+  err.classList.remove('show');
+  if (!currentRating) { showErr(err, 'Wybierz ocenę (1-5 gwiazdek).'); return; }
+  if (!content) { showErr(err, 'Napisz krótką recenzję.'); return; }
+  btn.disabled = true; btn.textContent = 'Publikowanie...';
+  const { error } = await sb.from('reviews').insert({
+    place_id: currentPlaceId,
+    user_id: currentUser.id,
+    user_name: currentProfile.full_name,
+    user_airline: currentProfile.airline,
+    rating: currentRating,
+    content
+  });
+  btn.disabled = false; btn.textContent = 'Opublikuj recenzję';
+  if (error) {
+    if (error.code === '23505') { showErr(err, 'Już dodałeś recenzję tego miejsca.'); return; }
+    showErr(err, 'Błąd: ' + error.message); return;
+  }
+  closeModal('add-review');
+  showToast('Recenzja opublikowana!');
+  openPlaceDetail(currentPlaceId);
+}
+
+function filterCat(btn, cat) {
+  document.querySelectorAll('#cat-filters .chip').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  activeCatFilter = cat;
+  loadPlaces();
+}
+
+// Auto-set city filter to user's city when opening places
+
+// ── PAGES ──
+function show(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nt').forEach(t => t.classList.remove('active'));
+  document.getElementById('p-' + name).classList.add('active');
+  const idx = { dashboard:0, chat:1, miejsca:2, map:3, profile:4 }[name];
+  if (idx !== undefined) document.querySelectorAll('.nt')[idx].classList.add('active');
+  // Update bottom nav active state
+  document.querySelectorAll('.bn-item').forEach(b => b.classList.remove('active'));
+  const bnEl = document.getElementById('bn-' + name);
+  if (bnEl) bnEl.classList.add('active');
+
+  if (name === 'map') setTimeout(() => { if (!mapInited) initMap(); else { leafMap.invalidateSize(); refreshMap(); } }, 60);
+  if (name === 'dashboard') { loadDashboard(); loadFlights(); }
+  if (name === 'chat') loadChatRooms();
+  if (name === 'miejsca') {
+    if (currentProfile && currentProfile.current_city) {
+      const sel = document.getElementById('places-city-filter');
+      if (sel && !sel.value) {
+        // Find matching option
+        const city = currentProfile.current_city;
+        for (let i = 0; i < sel.options.length; i++) {
+          if (sel.options[i].text.includes(city)) { sel.selectedIndex = i; break; }
+        }
+      }
+    }
+    loadPlaces();
+  }
+  if (name === 'profile') { loadProfileLikes(); loadFlights(); }
+}
+
+// ── MODALS ──
+function openModal(n) {
+  document.getElementById('overlay-' + n).classList.add('open');
+  if (n === 'add-flight') {
+    var sn = document.getElementById('fl-search-num');
+    var sr = document.getElementById('fl-search-result');
+    var se = document.getElementById('fl-search-err');
+    if (sn) sn.value = '';
+    if (sr) sr.style.display = 'none';
+    if (se) se.style.display = 'none';
+  }
+  if (n === 'add-place') {
+    selectedPlaceData = null;
+    var sp = document.getElementById('ap-selected-preview');
+    var as = document.getElementById('ap-search');
+    if (sp) sp.style.display = 'none';
+    if (as) as.value = '';
+    setTimeout(initApSearch, 100);
+  }
+}
+function closeModal(n) { document.getElementById('overlay-' + n).classList.remove('open'); }
+
+// ── HELPERS ──
+function showErr(el, msg) { el.textContent = msg; el.classList.add('show'); }
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3400);
+}
+
+// ══════════════════════════════════════
+// CALENDAR
+// ══════════════════════════════════════
+let calViewDate = new Date();
+let calSelectedDate = null;
+let calEvents = {}; // { 'YYYY-MM-DD': [{name, time, note}] }
+
+const MONTHS_PL = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+const DAYS_PL = ['Pn','Wt','Śr','Cz','Pt','So','Nd'];
+
+function dateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function loadCalEvents() {
+  if (!currentUser) return;
+  const stored = localStorage.getItem('cal_' + currentUser.id);
+  calEvents = stored ? JSON.parse(stored) : {};
+}
+
+function saveCalEvents() {
+  if (!currentUser) return;
+  localStorage.setItem('cal_' + currentUser.id, JSON.stringify(calEvents));
+}
+
+function renderMiniCal() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  document.getElementById('mini-cal-month').textContent = MONTHS_PL[month] + ' ' + year;
+  const firstDay = new Date(year, month, 1);
+  let startDow = firstDay.getDay(); // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1; // Mon=0
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const container = document.getElementById('mini-cal-days');
+  if (!container) return;
+  container.innerHTML = '';
+  for (var i = 0; i < startDow; i++) {
+    const empty = document.createElement('div');
+    container.appendChild(empty);
+  }
+  for (var d = 1; d <= daysInMonth; d++) {
+    const div = document.createElement('div');
+    div.className = 'cal-day';
+    div.textContent = d;
+    const key = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    if (d === now.getDate() && month === now.getMonth() && year === now.getFullYear()) div.classList.add('today');
+    if (calEvents[key] && calEvents[key].length > 0) div.classList.add('has-event');
+    const fd = getFlightDays();
+    if (fd[key] && fd[key].length > 0) div.classList.add('has-flight');
+    container.appendChild(div);
+  }
+}
+
+function getFlightDays() {
+  // Returns object { 'YYYY-MM-DD': [{from, to, time, flight_number}] }
+  if (!currentUser) return {};
+  const stored = localStorage.getItem('flights_cache_' + currentUser.id);
+  return stored ? JSON.parse(stored) : {};
+}
+
+function renderFullCal() {
+  const year = calViewDate.getFullYear();
+  const month = calViewDate.getMonth();
+  document.getElementById('full-cal-title').textContent = MONTHS_PL[month] + ' ' + year;
+  // Day names
+  const namesEl = document.getElementById('full-cal-names');
+  namesEl.innerHTML = '';
+  DAYS_PL.forEach(function(d) {
+    const div = document.createElement('div');
+    div.className = 'cal-full-day-name';
+    div.textContent = d;
+    namesEl.appendChild(div);
+  });
+  // Days
+  const firstDay = new Date(year, month, 1);
+  let startDow = firstDay.getDay();
+  startDow = startDow === 0 ? 6 : startDow - 1;
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const prevDays = new Date(year, month, 0).getDate();
+  const today = new Date();
+  const daysEl = document.getElementById('full-cal-days');
+  daysEl.innerHTML = '';
+  // Prev month fill
+  for (var i = 0; i < startDow; i++) {
+    const div = document.createElement('div');
+    div.className = 'cal-full-day other-month';
+    div.textContent = prevDays - startDow + 1 + i;
+    daysEl.appendChild(div);
+  }
+  // Current month
+  for (var d = 1; d <= daysInMonth; d++) {
+    const div = document.createElement('div');
+    div.className = 'cal-full-day';
+    div.textContent = d;
+    const key = year + '-' + String(month+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    if (d === today.getDate() && month === today.getMonth() && year === today.getFullYear()) div.classList.add('today');
+    if (calEvents[key] && calEvents[key].length > 0) div.classList.add('has-event');
+    const flightDays = getFlightDays();
+    if (flightDays[key] && flightDays[key].length > 0) div.classList.add('has-flight');
+    if (calSelectedDate === key) div.classList.add('selected');
+    (function(dayKey, dayNum) {
+      div.addEventListener('click', function() { selectCalDay(dayKey, dayNum, month, year); });
+    })(key, d);
+    daysEl.appendChild(div);
+  }
+  // Next month fill
+  const total = startDow + daysInMonth;
+  const remaining = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (var n = 1; n <= remaining; n++) {
+    const div = document.createElement('div');
+    div.className = 'cal-full-day other-month';
+    div.textContent = n;
+    daysEl.appendChild(div);
+  }
+}
+
+function selectCalDay(key, day, month, year) {
+  calSelectedDate = key;
+  const label = day + ' ' + MONTHS_PL[month] + ' ' + year;
+  document.getElementById('cal-selected-label').textContent = label;
+  document.getElementById('add-event-date-label').textContent = label;
+  renderFullCal();
+  renderDayEvents(key);
+}
+
+function renderDayEvents(key) {
+  const evList = document.getElementById('cal-events-list');
+  evList.innerHTML = '';
+  const events = calEvents[key] || [];
+  const flightDays = getFlightDays();
+  const flights = flightDays[key] || [];
+  
+  if (events.length === 0 && flights.length === 0) {
+    evList.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px">Brak wydarzeń w tym dniu</div>';
+    return;
+  }
+
+  // Show flights first (red)
+  flights.forEach(function(f) {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:rgba(240,96,96,.06);border-radius:8px;border:0.5px solid rgba(240,96,96,.25)';
+    div.innerHTML = '<i class="ti ti-plane-departure" style="color:var(--red);font-size:14px;margin-top:2px;flex-shrink:0"></i>'
+      + '<div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--red)">'
+      + (f.time ? f.time + ' · ' : '') + escHtml(f.from) + ' → ' + escHtml(f.to) + '</div>'
+      + (f.flight_number ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + escHtml(f.flight_number) + '</div>' : '')
+      + '</div><span style="font-size:9px;background:var(--red2);color:var(--red);padding:2px 6px;border-radius:5px;flex-shrink:0">Lot</span>';
+    evList.appendChild(div);
+  });
+
+  // Show regular events (green/blue)
+  events.forEach(function(ev, i) {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:rgba(255,255,255,.03);border-radius:8px;border:0.5px solid var(--border)';
+    div.innerHTML = '<div style="width:8px;height:8px;border-radius:50%;background:var(--sky2);flex-shrink:0;margin-top:4px"></div>'
+      + '<div style="flex:1"><div style="font-size:12px;font-weight:500;color:var(--txt)">'
+      + (ev.time ? ev.time + ' · ' : '') + escHtml(ev.name) + '</div>'
+      + (ev.note ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + escHtml(ev.note) + '</div>' : '') + '</div>';
+    const delBtn = document.createElement('button');
+    delBtn.style.cssText = 'background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0';
+    delBtn.innerHTML = '<i class="ti ti-trash"></i>';
+    delBtn.addEventListener('click', function() { deleteEvent(key, i); });
+    div.appendChild(delBtn);
+    evList.appendChild(div);
+  });
+}
+
+function deleteEvent(key, index) {
+  if (calEvents[key]) {
+    calEvents[key].splice(index, 1);
+    if (calEvents[key].length === 0) delete calEvents[key];
+    saveCalEvents();
+    renderFullCal();
+    renderMiniCal();
+    renderDayEvents(key);
+  }
+}
+
+function calNav(dir) {
+  calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() + dir, 1);
+  renderFullCal();
+}
+
+function openCalendar() {
+  loadCalEvents();
+  calViewDate = new Date();
+  renderFullCal();
+  document.getElementById('cal-overlay').classList.add('open');
+}
+
+function closeCalendar() {
+  document.getElementById('cal-overlay').classList.remove('open');
+}
+
+function openAddEvent() {
+  if (!calSelectedDate) { showToast('Najpierw wybierz dzień w kalendarzu.'); return; }
+  document.getElementById('ev-name').value = '';
+  document.getElementById('ev-time').value = '';
+  document.getElementById('ev-note').value = '';
+  openModal('add-event');
+}
+
+function saveEvent() {
+  const name = document.getElementById('ev-name').value.trim();
+  const time = document.getElementById('ev-time').value;
+  const note = document.getElementById('ev-note').value.trim();
+  const err = document.getElementById('ev-err');
+  err.classList.remove('show');
+  if (!name) { showErr(err, 'Wpisz nazwę wydarzenia.'); return; }
+  if (!calSelectedDate) { showErr(err, 'Wybierz dzień w kalendarzu.'); return; }
+  if (!calEvents[calSelectedDate]) calEvents[calSelectedDate] = [];
+  calEvents[calSelectedDate].push({ name, time, note });
+  saveCalEvents();
+  closeModal('add-event');
+  renderFullCal();
+  renderMiniCal();
+  renderDayEvents(calSelectedDate);
+  showToast('Wydarzenie dodane!');
+}
+
+// Mini calendar init is called inside showApp directly
+
+// ══════════════════════════════════════
+// FLIGHTS LOG
+// ══════════════════════════════════════
+let nextFlightTimer = null;
+
+async function loadFlights() {
+  if (!currentUser) return;
+  const { data, error } = await sb.from('flights')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('departure_time', { ascending: true });
+
+  const list = document.getElementById('flights-list');
+  if (!list) return;
+
+  if (!data || data.length === 0) {
+    list.innerHTML = '<div class="empty-state"><i class="ti ti-plane"></i>Brak lotów. Dodaj pierwszy!</div>';
+    hideNextFlightCard();
+    return;
+  }
+  // Cache flights for calendar
+  await cacheFlightsForCalendar();
+  renderMiniCal();
+
+  // Find next upcoming flight
+  const now = new Date();
+  const upcoming = data.filter(function(f) { return new Date(f.departure_time) > now; });
+  const past = data.filter(function(f) { return new Date(f.departure_time) <= now; });
+
+  if (upcoming.length > 0) {
+    showNextFlight(upcoming[0]);
+  } else {
+    hideNextFlightCard();
+  }
+
+  // Render list
+  list.innerHTML = '';
+
+  if (upcoming.length > 0) {
+    const upLabel = document.createElement('div');
+    upLabel.style.cssText = 'font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;margin-top:4px';
+    upLabel.textContent = 'Nadchodzące';
+    list.appendChild(upLabel);
+    upcoming.forEach(function(f) { list.appendChild(renderFlightCard(f, true)); });
+  }
+
+  if (past.length > 0) {
+    const pastLabel = document.createElement('div');
+    pastLabel.style.cssText = 'font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;margin-top:12px';
+    pastLabel.textContent = 'Historia';
+    list.appendChild(pastLabel);
+    past.slice().reverse().forEach(function(f) { list.appendChild(renderFlightCard(f, false)); });
+  }
+}
+
+function renderFlightCard(f, isUpcoming) {
+  const dep = new Date(f.departure_time);
+  const depStr = dep.toLocaleDateString('pl-PL', { day:'2-digit', month:'short', year:'numeric' })
+    + ' · ' + dep.toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' });
+
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:10px;border:0.5px solid '
+    + (isUpcoming ? 'rgba(59,139,235,.35)' : 'var(--border)')
+    + ';margin-bottom:7px;background:' + (isUpcoming ? 'rgba(59,139,235,.05)' : 'rgba(255,255,255,.02)');
+
+  div.innerHTML = '<div style="width:36px;height:36px;border-radius:9px;background:'
+    + (isUpcoming ? 'rgba(59,139,235,.15)' : 'var(--navy3)')
+    + ';display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">'
+    + (isUpcoming ? '<i class="ti ti-plane-departure" style="color:var(--sky2)"></i>' : '<i class="ti ti-plane" style="color:var(--muted)"></i>')
+    + '</div>'
+    + '<div style="flex:1;min-width:0">'
+    + '<div style="font-family:Syne,sans-serif;font-size:14px;font-weight:700;color:var(--txt)">'
+    + escHtml(f.from_city) + ' <span style="color:var(--muted);font-size:11px">→</span> ' + escHtml(f.to_city) + '</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + depStr
+    + (f.flight_number ? ' · ' + escHtml(f.flight_number) : '')
+    + (f.layover_hours ? ' · Postój: ' + f.layover_hours + 'h' : '') + '</div>'
+    + (f.notes ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(f.notes) + '</div>' : '')
+    + '</div>'
+    + '<button data-fid="' + f.id + '" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;flex-shrink:0">'
+    + '<i class="ti ti-trash"></i></button>';
+
+  div.querySelector('button[data-fid]').addEventListener('click', function(e) {
+    e.stopPropagation();
+    deleteFlight(this.getAttribute('data-fid'));
+  });
+  return div;
+}
+
+function showNextFlight(f) {
+  const card = document.getElementById('next-flight-card');
+  if (!card) return;
+  card.style.display = 'block';
+  document.getElementById('nf-route').textContent = f.from_city + ' → ' + f.to_city;
+  const dep = new Date(f.departure_time);
+  document.getElementById('nf-date').textContent = dep.toLocaleDateString('pl-PL', { weekday:'long', day:'numeric', month:'long' })
+    + ' · ' + dep.toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' })
+    + (f.flight_number ? ' · ' + f.flight_number : '');
+  const extra = [];
+  if (f.layover_hours) extra.push('Postój: ' + f.layover_hours + 'h');
+  if (f.notes) extra.push(f.notes);
+  document.getElementById('nf-extra').textContent = extra.join(' · ');
+
+  // Countdown timer
+  if (nextFlightTimer) clearInterval(nextFlightTimer);
+  function updateCountdown() {
+    const diff = dep - new Date();
+    if (diff <= 0) { document.getElementById('nf-countdown').textContent = 'Teraz'; return; }
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    let str = '';
+    if (days > 0) str = days + 'd ' + String(hours).padStart(2,'0') + 'h';
+    else str = String(hours).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+    document.getElementById('nf-countdown').textContent = str;
+  }
+  updateCountdown();
+  nextFlightTimer = setInterval(updateCountdown, 1000);
+}
+
+function hideNextFlightCard() {
+  const card = document.getElementById('next-flight-card');
+  if (card) card.style.display = 'none';
+  if (nextFlightTimer) { clearInterval(nextFlightTimer); nextFlightTimer = null; }
+}
+
+async function submitFlight() {
+  if (!currentUser) return;
+  const from = document.getElementById('fl-from').value.trim();
+  const to = document.getElementById('fl-to').value.trim();
+  const dep = document.getElementById('fl-dep').value;
+  const arr = document.getElementById('fl-arr').value;
+  const num = document.getElementById('fl-num').value.trim();
+  const layover = parseInt(document.getElementById('fl-layover').value) || null;
+  const notes = document.getElementById('fl-notes').value.trim();
+  const err = document.getElementById('fl-err');
+  const btn = document.getElementById('fl-btn');
+  err.classList.remove('show');
+  if (!from) { showErr(err, 'Wpisz miasto wylotu.'); return; }
+  if (!to) { showErr(err, 'Wpisz miasto przylotu.'); return; }
+  if (!dep) { showErr(err, 'Wybierz datę i godzinę wylotu.'); return; }
+  btn.disabled = true; btn.textContent = 'Dodawanie...';
+  const { error } = await sb.from('flights').insert({
+    user_id: currentUser.id,
+    from_city: from,
+    to_city: to,
+    departure_time: new Date(dep).toISOString(),
+    arrival_time: arr ? new Date(arr).toISOString() : null,
+    flight_number: num || null,
+    layover_hours: layover,
+    notes: notes || null
+  });
+  btn.disabled = false; btn.textContent = 'Dodaj lot';
+  if (error) { showErr(err, 'Błąd: ' + error.message); return; }
+  closeModal('add-flight');
+  // Reset form
+  ['fl-from','fl-to','fl-num','fl-notes'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('fl-dep').value = '';
+  document.getElementById('fl-arr').value = '';
+  document.getElementById('fl-layover').value = '';
+  showToast('Lot dodany!');
+  await cacheFlightsForCalendar();
+  loadFlights();
+}
+
+async function cacheFlightsForCalendar() {
+  if (!currentUser) return;
+  const { data } = await sb.from('flights')
+    .select('from_city, to_city, departure_time, flight_number')
+    .eq('user_id', currentUser.id);
+  if (!data) return;
+  const flightDays = {};
+  data.forEach(function(f) {
+    const dep = new Date(f.departure_time);
+    const key = dep.getFullYear() + '-' + String(dep.getMonth()+1).padStart(2,'0') + '-' + String(dep.getDate()).padStart(2,'0');
+    const timeStr = dep.toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' });
+    if (!flightDays[key]) flightDays[key] = [];
+    flightDays[key].push({
+      from: f.from_city,
+      to: f.to_city,
+      time: timeStr,
+      flight_number: f.flight_number
+    });
+  });
+  localStorage.setItem('flights_cache_' + currentUser.id, JSON.stringify(flightDays));
+}
+
+async function deleteFlight(id) {
+  if (!confirm('Usunąć ten lot?')) return;
+  await sb.from('flights').delete().eq('id', id).eq('user_id', currentUser.id);
+  showToast('Lot usunięty.');
+  loadFlights();
+}
+
+// ══════════════════════════════════════
+// FLIGHT SEARCH (AeroDataBox) & LIVE MAP
+// ══════════════════════════════════════
+const RAPID_API_KEY = 'eb249c7241mshdbf53d8223d12d7p18217ejsn4d97a9af213e';
+
+async function searchFlight() {
+  const input = document.getElementById('fl-search-num');
+  const btn = document.getElementById('fl-search-btn');
+  const resultEl = document.getElementById('fl-search-result');
+  const errEl = document.getElementById('fl-search-err');
+  const raw = (input.value || '').trim().toUpperCase().replace(/\s/g,'');
+  if (!raw) { showFlightSearchErr('Wpisz numer lotu, np. LO89'); return; }
+  resultEl.style.display = 'none';
+  errEl.style.display = 'none';
+  btn.innerHTML = '<i class="ti ti-loader" style="font-size:13px;vertical-align:-1px;margin-right:4px"></i>Szukam...';
+  btn.disabled = true;
+  try {
+    var today = new Date().toISOString().split('T')[0];
+    var data = await aeroFetch(raw, today);
+    if (!data) {
+      var tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      data = await aeroFetch(raw, tomorrow);
+    }
+    btn.innerHTML = '<i class="ti ti-search" style="font-size:13px;vertical-align:-1px;margin-right:4px"></i>Szukaj';
+    btn.disabled = false;
+    if (!data) { showFlightSearchErr('Nie znaleziono lotu ' + raw + '. Sprawdź numer lotu.'); return; }
+    fillFlightData(data, raw);
+    resultEl.style.display = 'block';
+    errEl.style.display = 'none';
+  } catch(e) {
+    btn.innerHTML = '<i class="ti ti-search" style="font-size:13px;vertical-align:-1px;margin-right:4px"></i>Szukaj';
+    btn.disabled = false;
+    showFlightSearchErr('Błąd połączenia. Sprawdź internet.');
+  }
+}
+
+async function aeroFetch(flNum, dateStr) {
+  var resp = await fetch('https://aerodatabox.p.rapidapi.com/flights/number/' + flNum + '/' + dateStr, {
+    method: 'GET',
+    headers: { 'x-rapidapi-host': 'aerodatabox.p.rapidapi.com', 'x-rapidapi-key': RAPID_API_KEY }
+  });
+  if (!resp.ok) return null;
+  var data = await resp.json();
+  return Array.isArray(data) ? data[0] : data;
+}
+
+function parseAeroTime(timeObj) {
+  // AeroDataBox can return time as string or object with utc/local fields
+  if (!timeObj) return '';
+  if (typeof timeObj === 'string') return timeObj;
+  // Try all known field names
+  return timeObj.local || timeObj.utc || timeObj.scheduledLocal || timeObj.scheduledUtc
+    || timeObj.scheduledTimeLocal || timeObj.scheduledTimeUtc || '';
+}
+
+function toDatetimeLocal(timeStr) {
+  if (!timeStr) return '';
+  try {
+    // AeroDataBox sometimes returns "2026-06-02 13:55" or "2026-06-02T13:55:00+02:00"
+    var normalized = timeStr.replace(' ', 'T');
+    var d = new Date(normalized);
+    if (isNaN(d.getTime())) return '';
+    // Return as local datetime-local string (YYYY-MM-DDTHH:MM)
+    var offset = d.getTimezoneOffset();
+    var local = new Date(d.getTime() - offset * 60000);
+    return local.toISOString().slice(0,16);
+  } catch(e) { return ''; }
+}
+
+function fillFlightData(flight, flightNum) {
+  console.log('AeroDataBox response:', JSON.stringify(flight).slice(0,500));
+  var dep = flight.departure || {};
+  var arr = flight.arrival || {};
+  var fromName = (dep.airport && (dep.airport.municipalityName || dep.airport.name)) || '';
+  var toName = (arr.airport && (arr.airport.municipalityName || arr.airport.name)) || '';
+  var fromIATA = (dep.airport && dep.airport.iata) || '';
+  var toIATA = (arr.airport && arr.airport.iata) || '';
+
+  // Try multiple time field patterns AeroDataBox uses
+  var depTime = parseAeroTime(dep.scheduledTime) || parseAeroTime(dep.scheduledTimeLocal)
+    || dep.scheduledTimeUtc || dep.local || dep.utc || '';
+  var arrTime = parseAeroTime(arr.scheduledTime) || parseAeroTime(arr.scheduledTimeLocal)
+    || arr.scheduledTimeUtc || arr.local || arr.utc || '';
+
+  document.getElementById('fl-from').value = fromName || fromIATA;
+  document.getElementById('fl-to').value = toName || toIATA;
+  document.getElementById('fl-num').value = flightNum;
+
+  var depFormatted = toDatetimeLocal(depTime);
+  var arrFormatted = toDatetimeLocal(arrTime);
+
+  if (depFormatted) document.getElementById('fl-dep').value = depFormatted;
+  if (arrFormatted) document.getElementById('fl-arr').value = arrFormatted;
+
+  var displayDate = depTime ? depTime.toString().slice(0,10) : '';
+  var displayTime = depTime ? depTime.toString().replace('T',' ').slice(0,16) : '';
+
+  var resultEl = document.getElementById('fl-search-result');
+  resultEl.innerHTML = '<i class="ti ti-check" style="font-size:13px;vertical-align:-1px;margin-right:4px"></i>'
+    + '<strong>' + flightNum + '</strong>: ' + (fromName || fromIATA || '?') + ' → ' + (toName || toIATA || '?')
+    + (displayTime ? ' · ' + displayTime : '')
+    + ' — dane wypełnione!';
+}
+
+function showFlightSearchErr(msg) {
+  var e = document.getElementById('fl-search-err');
+  e.style.display = 'block'; e.textContent = msg;
+  document.getElementById('fl-search-result').style.display = 'none';
+}
+
+// Live tracking - disabled until Cloudflare Worker proxy is set up
+function startLiveTracking() { /* coming soon */ }
+
+// ══════════════════════════════════════
+// GOOGLE PLACES AUTOCOMPLETE
+// ══════════════════════════════════════
+var placesService = null;
+var autocompleteService = null;
+var selectedPlaceData = null;
+
+function initGooglePlaces() {
+  if (typeof google === 'undefined' || !google.maps || !google.maps.places) {
+    setTimeout(initGooglePlaces, 500);
+    return;
+  }
+  autocompleteService = new google.maps.places.AutocompleteService();
+  placesService = new google.maps.places.PlacesService(document.createElement('div'));
+  console.log('Google Places initialized OK');
+}
+// Init on page load
+setTimeout(initGooglePlaces, 1000);
+
+function searchGooglePlaces() {
+  var input = document.getElementById('ap-search').value.trim();
+  var suggestionsEl = document.getElementById('ap-suggestions');
+  if (!input || input.length < 3) { suggestionsEl.style.display = 'none'; return; }
+  if (!autocompleteService) { initGooglePlaces(); return; }
+  autocompleteService.getPlacePredictions({
+    input: input,
+    types: ['establishment']
+  }, function(predictions, status) {
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+      suggestionsEl.style.display = 'none'; return;
+    }
+    suggestionsEl.innerHTML = '';
+    suggestionsEl.style.display = 'block';
+    predictions.slice(0,5).forEach(function(p) {
+      var div = document.createElement('div');
+      div.style.cssText = 'padding:10px 14px;cursor:pointer;font-size:13px;color:var(--txt);border-bottom:0.5px solid var(--border);transition:background .13s';
+      div.innerHTML = '<div style="font-weight:500">' + escHtml(p.structured_formatting.main_text) + '</div>'
+        + '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + escHtml(p.structured_formatting.secondary_text || '') + '</div>';
+      div.addEventListener('mouseover', function(){ this.style.background = 'rgba(59,139,235,.1)'; });
+      div.addEventListener('mouseout', function(){ this.style.background = 'transparent'; });
+      div.addEventListener('click', function() { selectGooglePlace(p.place_id, p.structured_formatting.main_text); });
+      suggestionsEl.appendChild(div);
+    });
+  });
+}
+
+function selectGooglePlace(placeId, name) {
+  document.getElementById('ap-suggestions').style.display = 'none';
+  document.getElementById('ap-search').value = name;
+  if (!placesService) return;
+  placesService.getDetails({
+    placeId: placeId,
+    fields: ['name','formatted_address','geometry','types','url','formatted_phone_number']
+  }, function(place, status) {
+    if (status !== google.maps.places.PlacesServiceStatus.OK || !place) return;
+    selectedPlaceData = place;
+    // Fill form fields
+    document.getElementById('ap-name').value = place.name || '';
+    document.getElementById('ap-address').value = place.formatted_address || '';
+    document.getElementById('ap-maps').value = place.url || ('https://maps.google.com/?q=' + encodeURIComponent(place.name + ' ' + (place.formatted_address || '')));
+    // Auto-detect category from types
+    var types = place.types || [];
+    var cat = 'Inne';
+    if (types.includes('restaurant') || types.includes('food')) cat = 'Restauracja';
+    else if (types.includes('cafe') || types.includes('bakery')) cat = 'Kawiarnia';
+    else if (types.includes('lodging') || types.includes('hotel')) cat = 'Hotel';
+    else if (types.includes('store') || types.includes('shopping_mall')) cat = 'Sklep';
+    else if (types.includes('transit_station') || types.includes('subway_station') || types.includes('airport')) cat = 'Transport';
+    document.getElementById('ap-category').value = cat;
+    // Auto-detect city from address
+    var addr = place.formatted_address || '';
+    var cityMap = {
+      'Warsaw': 'Warszawa', 'London': 'Londyn', 'Frankfurt': 'Frankfurt',
+      'Paris': 'Paryż', 'Amsterdam': 'Amsterdam', 'Madrid': 'Madryt',
+      'Rome': 'Rzym', 'Vienna': 'Wiedeń', 'Zurich': 'Zurych',
+      'Dubai': 'Dubai', 'Doha': 'Doha', 'Istanbul': 'Istanbul',
+      'Bangkok': 'Bangkok', 'Tokyo': 'Tokio', 'Singapore': 'Singapur',
+      'Hong Kong': 'Hong Kong', 'Seoul': 'Seul', 'Delhi': 'Delhi',
+      'Mumbai': 'Mumbai', 'New York': 'Nowy Jork', 'Los Angeles': 'Los Angeles',
+      'Chicago': 'Chicago', 'Toronto': 'Toronto', 'Miami': 'Miami',
+      'Nairobi': 'Nairobi', 'Sydney': 'Sydney', 'Melbourne': 'Melbourne'
+    };
+    var citySelect = document.getElementById('ap-city');
+    Object.keys(cityMap).forEach(function(eng) {
+      if (addr.includes(eng)) {
+        var pl = cityMap[eng];
+        for (var i = 0; i < citySelect.options.length; i++) {
+          if (citySelect.options[i].text.includes(pl)) {
+            citySelect.selectedIndex = i; break;
+          }
+        }
+      }
+    });
+    // Show preview
+    var preview = document.getElementById('ap-selected-preview');
+    preview.style.display = 'block';
+    preview.innerHTML = '<i class="ti ti-check" style="font-size:12px;vertical-align:-1px;margin-right:5px"></i>'
+      + '<strong>' + escHtml(place.name) + '</strong> — dane pobrane z Google Maps!';
+  });
+}
+
+// Attach search listener when modal opens
+var apSearchInited = false;
+function initApSearch() {
+  apSearchInited = false; // always reinit to ensure listener is fresh
+  var el = document.getElementById('ap-search');
+  if (!el) return;
+  el.addEventListener('input', searchGooglePlaces);
+  el.addEventListener('blur', function() {
+    setTimeout(function(){ document.getElementById('ap-suggestions').style.display = 'none'; }, 200);
+  });
+  apSearchInited = true;
+  initGooglePlaces();
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
